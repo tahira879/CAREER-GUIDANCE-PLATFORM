@@ -1,0 +1,8 @@
+streamlit
+pandas
+matplotlib
+seaborn
+plotly
+python-dotenv
+beautifulsoap
+scikit-learn
