@@ -1,0 +1,16 @@
+[theme]
+# PathFinder Theme Colors
+primaryColor = "#3D52A0"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#EDE8F5"
+textColor = "#1a1a2e"
+font = "sans serif"
+
+# This line forces Light Mode even if the PC is in Dark Mode
+base = "light"
+
+[server]
+# Recommended for smoother deployment
+headless = true
+enableCORS = false
+enableXsrfProtection = false
