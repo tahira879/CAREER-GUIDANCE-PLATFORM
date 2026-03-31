@@ -497,23 +497,37 @@ PF_COLORS      = ["#3D52A0","#7091E6","#ADBBDA","#22c55e","#f59e0b","#ef4444","#
 # ═══════════════════════════════════════════════════════════════════
 # GROQ CLIENT
 # ═══════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════
+# GROQ CLIENT (Updated for Secrets & Deployment)
+# ═══════════════════════════════════════════════════════════════════
 @st.cache_resource
 def get_groq():
-    k = os.getenv("GROQ_API_KEY","")
-    if not k: return None
+    # Pehle Streamlit Secrets check karega (Deployment ke liye)
+    # Agar wahan nahi mili toh environment variables check karega (Local testing ke liye)
+    try:
+        k = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY", "")
+    except:
+        k = os.getenv("GROQ_API_KEY", "")
+        
+    if not k: 
+        return None
     return Groq(api_key=k)
 
 def groq_complete(messages, system="", max_tokens=2048):
     client = get_groq()
-    if not client: return "⚠️ GROQ_API_KEY not set in .env"
+    if not client: 
+        return "⚠️ GROQ_API_KEY missing! Please add it to Streamlit Secrets or .env file."
+    
     msgs = ([{"role":"system","content":system}] if system else []) + messages
     try:
         r = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=msgs, max_tokens=max_tokens
+            messages=msgs, 
+            max_tokens=max_tokens
         )
         return r.choices[0].message.content
-    except Exception as e: return f"⚠️ {e}"
+    except Exception as e: 
+        return f"⚠️ API Error: {str(e)}"
 
 # ═══════════════════════════════════════════════════════════════════
 # CAREER KNOWLEDGE BASE (built-in fallback — 55 careers)
@@ -932,47 +946,8 @@ def render_footer():
       <div class="footer-bottom">© 2026 PathFinder AI &nbsp;|&nbsp; Career Guidance Platform &nbsp;|&nbsp; All rights reserved.</div>
     </div>""", unsafe_allow_html=True)
 
-# ═══════════════════════════════════════════════════════════════════
-# PAGE: LANDING
-# ═══════════════════════════════════════════════════════════════════
-def page_landing():
-    public_nav_buttons()
-    st.markdown("""
-    <div class="hero-wrap">
-      <div class="hero-img"></div>
-      <div class="hero-overlay">
-        <h1 class="hero-title">PATHFINDER AI</h1>
-        <p style="font-size:20px;max-width:780px;font-weight:300;opacity:.92;margin-top:14px;color:white;">
-          A centralized AI ecosystem for high-performance students to discover, plan, and dominate their career paths.
-        </p>
-        <div style="margin-top:30px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
-          <div style="background:rgba(255,255,255,.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:8px 22px;color:white;font-size:.88rem;font-weight:600;">🤖 AI-Powered Matching</div>
-          <div style="background:rgba(255,255,255,.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:8px 22px;color:white;font-size:.88rem;font-weight:600;">🔥 Burnout Prevention</div>
-          <div style="background:rgba(255,255,255,.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:8px 22px;color:white;font-size:.88rem;font-weight:600;">🗺️ Personalized Roadmaps</div>
-          <div style="background:rgba(255,255,255,.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:8px 22px;color:white;font-size:.88rem;font-weight:600;">📄 Resume AI Review</div>
-        </div>
-      </div>
-    </div>""", unsafe_allow_html=True)
-    st.markdown("<div style='padding:80px 8%;text-align:center;'>", unsafe_allow_html=True)
-    st.markdown("<div class='section-title'>Neural Ecosystem Systems</div>", unsafe_allow_html=True)
-    systems = [
-        (" Pathway Mapping","Our AI creates a personalized academic roadmap identifying strengths and weaknesses to guide you toward high-income skills in real-time."),
-        (" Project Showcase","A dedicated space to upload and visualize your final-year projects. Get AI feedback on your code quality, documentation, and presentation skills before you graduate."),
-        (" Dynamic Mentorship","Gain instant access to a network of global industry leaders — a direct bridge to veterans currently shaping the tech world."),
-        (" Skill Benchmarking","Compare your progress with the top 1% of students globally. Our system shows you exactly where you stand."),
-        (" Industry Interlink","Automatic profile syncing with global recruitment portals. As you complete projects, your portfolio is showcased to partners worldwide."),
-        (" Velocity Loops","A continuous feedback cycle. Every project you finish updates your trajectory, suggesting the next high-impact certification."),
-    ]
-    c1, c2, c3 = st.columns(3)
-    for i,(title,desc) in enumerate(systems):
-        with [c1,c2,c3][i%3]:
-            st.markdown(f'<div class="glass-card"><h3>{title}</h3><p>{desc}</p></div>', unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-    render_footer()
 
-# ═══════════════════════════════════════════════════════════════════
-# PAGE: ABOUT
-# ═══════════════════════════════════════════════════════════════════
+
 # ═══════════════════════════════════════════════════════════════════
 # PAGE: ABOUT (MEGA VISUAL UPGRADE)
 # ═══════════════════════════════════════════════════════════════════
@@ -3333,6 +3308,7 @@ def app_training():
 def main():
     render_nav()
     if st.session_state.logged_in:
+        render_floating_chat_cleanup()          # ← REMOVE floating chat on login
         render_sidebar()
         pg = st.session_state.app_page
         {
@@ -3347,6 +3323,7 @@ def main():
             "training": app_training,
         }.get(pg, app_home)()
     else:
+        render_floating_chat()                  # ← SHOW floating chat for visitors
         pg = st.session_state.page
         if   pg == "landing": page_landing()
         elif pg == "about":   page_about()
