@@ -3308,7 +3308,6 @@ def app_training():
 def main():
     render_nav()
     if st.session_state.logged_in:
-        render_floating_chat_cleanup()          # ← REMOVE floating chat on login
         render_sidebar()
         pg = st.session_state.app_page
         {
@@ -3323,12 +3322,12 @@ def main():
             "training": app_training,
         }.get(pg, app_home)()
     else:
-        render_floating_chat()                  # ← SHOW floating chat for visitors
         pg = st.session_state.page
         if   pg == "landing": page_landing()
         elif pg == "about":   page_about()
         elif pg == "auth":    page_auth()
         else:                 page_landing()
+
 
 if __name__ == "__main__":
     main()
