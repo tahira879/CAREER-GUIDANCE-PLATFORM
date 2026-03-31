@@ -1,4 +1,5 @@
 # CAREER-GUIDANCE-PLATFORM
+https://career-guidance-platform-m2scaxtbvythrexyl83vgz.streamlit.app/
 
 
 # PathFinder AI: Career Intelligence Platform
