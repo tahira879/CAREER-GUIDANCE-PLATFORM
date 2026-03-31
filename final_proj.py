@@ -949,6 +949,47 @@ def render_footer():
 
 
 # ═══════════════════════════════════════════════════════════════════
+# PAGE: LANDING
+# ═══════════════════════════════════════════════════════════════════
+def page_landing():
+    public_nav_buttons()
+    st.markdown("""
+    <div class="hero-wrap">
+      <div class="hero-img"></div>
+      <div class="hero-overlay">
+        <h1 class="hero-title">PATHFINDER AI</h1>
+        <p style="font-size:20px;max-width:780px;font-weight:300;opacity:.92;margin-top:14px;color:white;">
+          A centralized AI ecosystem for high-performance students to discover, plan, and dominate their career paths.
+        </p>
+        <div style="margin-top:30px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
+          <div style="background:rgba(255,255,255,.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:8px 22px;color:white;font-size:.88rem;font-weight:600;">🤖 AI-Powered Matching</div>
+          <div style="background:rgba(255,255,255,.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:8px 22px;color:white;font-size:.88rem;font-weight:600;">🔥 Burnout Prevention</div>
+          <div style="background:rgba(255,255,255,.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:8px 22px;color:white;font-size:.88rem;font-weight:600;">🗺️ Personalized Roadmaps</div>
+          <div style="background:rgba(255,255,255,.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:8px 22px;color:white;font-size:.88rem;font-weight:600;">📄 Resume AI Review</div>
+        </div>
+      </div>
+    </div>""", unsafe_allow_html=True)
+    st.markdown("<div style='padding:80px 8%;text-align:center;'>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>Neural Ecosystem Systems</div>", unsafe_allow_html=True)
+    systems = [
+        (" Pathway Mapping","Our AI creates a personalized academic roadmap identifying strengths and weaknesses to guide you toward high-income skills in real-time."),
+        (" Project Showcase","A dedicated space to upload and visualize your final-year projects. Get AI feedback on your code quality, documentation, and presentation skills before you graduate."),
+        (" Dynamic Mentorship","Gain instant access to a network of global industry leaders — a direct bridge to veterans currently shaping the tech world."),
+        (" Skill Benchmarking","Compare your progress with the top 1% of students globally. Our system shows you exactly where you stand."),
+        (" Industry Interlink","Automatic profile syncing with global recruitment portals. As you complete projects, your portfolio is showcased to partners worldwide."),
+        (" Velocity Loops","A continuous feedback cycle. Every project you finish updates your trajectory, suggesting the next high-impact certification."),
+    ]
+    c1, c2, c3 = st.columns(3)
+    for i,(title,desc) in enumerate(systems):
+        with [c1,c2,c3][i%3]:
+            st.markdown(f'<div class="glass-card"><h3>{title}</h3><p>{desc}</p></div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+    render_footer()
+
+# ═══════════════════════════════════════════════════════════════════
+# PAGE: ABOUT
+# ═══════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════
 # PAGE: ABOUT (MEGA VISUAL UPGRADE)
 # ═══════════════════════════════════════════════════════════════════
 def page_about():
@@ -3327,7 +3368,6 @@ def main():
         elif pg == "about":   page_about()
         elif pg == "auth":    page_auth()
         else:                 page_landing()
-
 
 if __name__ == "__main__":
     main()
