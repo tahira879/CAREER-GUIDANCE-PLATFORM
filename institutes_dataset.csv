@@ -1,0 +1,71 @@
+name,city,country,type,career_field,academic_level,fee_min,fee_max,ranking,scholarship,website
+FAST-NUCES,Karachi,Pakistan,University,Software Engineering;Data Science;AI/ML Engineering;Cybersecurity,Undergraduate,3000,8000,9,True,nu.edu.pk
+IBA Karachi,Karachi,Pakistan,University,Business Analyst;Marketing Manager;HR Manager;Entrepreneur,Undergraduate,4000,10000,9,True,iba.edu.pk
+NED University,Karachi,Pakistan,University,Civil Engineer;Mechanical Engineer;Electrical Engineer,Undergraduate,500,2000,8,True,neduet.edu.pk
+DOW University of Health Sciences,Karachi,Pakistan,Medical University,General Physician;Surgeon;Dentist;Nurse;Pharmacist,Undergraduate,2000,6000,8,True,duhs.edu.pk
+Karachi Grammar School,Karachi,Pakistan,High School,General;School Teacher,High,2000,5000,9,False,kgs.edu.pk
+Nixor College,Karachi,Pakistan,College,General;A-Levels;University Prep,High,3000,6000,8,True,nixor.edu.pk
+LUMS,Lahore,Pakistan,University,Business Analyst;Software Engineer;Entrepreneur;Financial Analyst,Undergraduate,6000,14000,10,True,lums.edu.pk
+UET Lahore,Lahore,Pakistan,University,Civil Engineer;Electrical Engineer;Mechanical Engineer,Undergraduate,500,1500,8,True,uet.edu.pk
+King Edward Medical University,Lahore,Pakistan,Medical University,General Physician;Surgeon;Dentist,Undergraduate,1000,4000,9,True,kemu.edu.pk
+COMSATS Islamabad,Islamabad,Pakistan,University,Software Engineer;Data Scientist;Cybersecurity Analyst,Undergraduate,2000,6000,7,True,comsats.edu.pk
+NUST,Islamabad,Pakistan,University,Robotics Engineer;Mechanical Engineer;Electrical Engineer;AI/ML Engineer,Undergraduate,3000,8000,9,True,nust.edu.pk
+Quaid-i-Azam University,Islamabad,Pakistan,University,Research Scientist;Environmental Scientist;Psychologist,Graduate,500,2000,7,True,qau.edu.pk
+GIK Institute,Peshawar,Pakistan,University,Mechanical Engineer;Electrical Engineer;Software Engineer,Undergraduate,3000,7000,8,True,giki.edu.pk
+BZU Multan,Multan,Pakistan,University,Business Analyst;School Teacher;Social Worker,Undergraduate,300,1000,6,True,bzu.edu.pk
+PakOlympiad — Math & Science,Karachi,Pakistan,Olympiad,Research Scientist;Data Scientist;AI/ML Engineer,High,0,0,9,True,pakoly.edu.pk
+ICPC Pakistan Chapter,Lahore,Pakistan,Competition,Software Engineer;Competitive Programming,Undergraduate,0,0,9,True,icpc.global
+IIT Bombay,Mumbai,India,University,Software Engineer;Data Scientist;AI/ML Engineer;Robotics Engineer,Undergraduate,2000,5000,10,True,iitb.ac.in
+IIM Ahmedabad,Mumbai,India,Business School,Entrepreneur;Business Analyst;Investment Banker;Marketing Manager,Graduate,25000,40000,10,True,iima.ac.in
+AIIMS Delhi,Delhi,India,Medical University,General Physician;Surgeon;Radiologist,Undergraduate,100,500,10,True,aiims.edu
+NIT Bangalore,Bangalore,India,University,Software Engineer;Cloud Engineer;DevOps Engineer,Undergraduate,1000,3000,8,True,nitk.ac.in
+Manipal Institute of Technology,Bangalore,India,University,Mechanical Engineer;Electrical Engineer;Civil Engineer,Undergraduate,5000,12000,7,True,manipal.edu
+Symbiosis International,Pune,India,University,HR Manager;Marketing Manager;Business Analyst,Undergraduate,4000,9000,7,False,symbiosis.ac.in
+Xavier Institute of Management,Kolkata,India,Business School,Business Analyst;HR Manager;Supply Chain Manager,Graduate,8000,16000,8,True,xiss.ac.in
+IIT Madras,Chennai,India,University,Data Scientist;AI/ML Engineer;Research Scientist,Graduate,1500,4000,10,True,iitm.ac.in
+MIT,New York,USA,University,AI/ML Engineer;Robotics Engineer;Software Engineer;Data Scientist,Graduate,55000,80000,10,True,mit.edu
+Stanford University,San Francisco,USA,University,Software Engineer;Entrepreneur;Product Manager;AI/ML Engineer,Graduate,55000,82000,10,True,stanford.edu
+Harvard Business School,New York,USA,Business School,Investment Banker;Entrepreneur;Marketing Manager;Financial Analyst,Graduate,70000,110000,10,True,hbs.edu
+Johns Hopkins Medicine,New York,USA,Medical University,General Physician;Surgeon;Radiologist;Pharmacist,Graduate,55000,90000,10,True,hopkinsmedicine.org
+UCLA Anderson,Los Angeles,USA,Business School,Marketing Manager;Business Analyst;Entrepreneur,Graduate,65000,95000,9,True,anderson.ucla.edu
+Carnegie Mellon University,San Francisco,USA,University,Software Engineer;Data Engineer;Cybersecurity Analyst;Game Developer,Graduate,55000,82000,10,True,cmu.edu
+Parsons School of Design,New York,USA,Art & Design School,Graphic Designer;UX Designer;Interior Designer;Film Director,Undergraduate,47000,62000,9,True,newschool.edu/parsons
+Berklee College of Music,Boston,USA,Music School,Musician;Film Director;Content Creator,Undergraduate,48000,65000,9,True,berklee.edu
+Imperial College London,London,UK,University,Robotics Engineer;AI/ML Engineer;Chemical Engineer;Research Scientist,Graduate,30000,45000,10,True,imperial.ac.uk
+London School of Economics,London,UK,University,Financial Analyst;Investment Banker;Economist;Lawyer,Graduate,25000,38000,10,True,lse.ac.uk
+University of Manchester,Manchester,UK,University,Data Scientist;Environmental Scientist;Research Scientist,Graduate,22000,35000,8,True,manchester.ac.uk
+UCL Medical School,London,UK,Medical University,General Physician;Surgeon;Dentist;Radiologist,Graduate,28000,50000,10,True,ucl.ac.uk
+American University of Sharjah,Dubai,UAE,University,Architect;Civil Engineer;Business Analyst;Marketing Manager,Undergraduate,12000,18000,8,True,aus.edu
+Khalifa University,Abu Dhabi,UAE,University,AI/ML Engineer;Robotics Engineer;Petroleum Engineer,Graduate,8000,18000,9,True,ku.ac.ae
+HBMSU Dubai,Dubai,UAE,University,HR Manager;Business Analyst;Educational Consultant,Graduate,6000,14000,7,False,hbmsu.ac.ae
+University of Toronto,Toronto,Canada,University,Software Engineer;Data Scientist;Research Scientist;AI/ML Engineer,Graduate,25000,40000,10,True,utoronto.ca
+Rotman School of Management,Toronto,Canada,Business School,Investment Banker;Financial Analyst;Entrepreneur,Graduate,30000,50000,9,True,rotman.utoronto.ca
+UBC Vancouver,Vancouver,Canada,University,Environmental Scientist;Marine Biologist;Civil Engineer,Graduate,20000,35000,9,True,ubc.ca
+University of Sydney,Sydney,Australia,University,Software Engineer;Data Scientist;Lawyer;Business Analyst,Graduate,28000,45000,9,True,sydney.edu.au
+Monash University,Melbourne,Australia,University,Pharmacist;Nurse;General Physician;Physiotherapist,Graduate,25000,40000,8,True,monash.edu
+TU Munich,Munich,Germany,University,Mechanical Engineer;Robotics Engineer;AI/ML Engineer;Data Scientist,Graduate,500,2000,10,True,tum.de
+Humboldt University,Berlin,Germany,University,Research Scientist;Lawyer;Journalist;Social Worker,Graduate,300,1500,8,True,hu-berlin.de
+NUS,Singapore,Singapore,University,Software Engineer;Data Scientist;Financial Analyst;Business Analyst,Graduate,15000,28000,10,True,nus.edu.sg
+Nanyang Technological University,Singapore,Singapore,University,AI/ML Engineer;Robotics Engineer;Data Engineer,Graduate,14000,27000,9,True,ntu.edu.sg
+University of Malaya,Kuala Lumpur,Malaysia,University,General Physician;Software Engineer;Business Analyst,Graduate,3000,8000,7,True,um.edu.my
+American University in Cairo,Cairo,Egypt,University,Journalist;Marketing Manager;Business Analyst;Lawyer,Undergraduate,12000,22000,8,True,aucegypt.edu
+KAUST,Riyadh,Saudi Arabia,University,AI/ML Engineer;Research Scientist;Environmental Scientist;Data Scientist,Graduate,0,0,9,True,kaust.edu.sa
+Coursera — Tech Tracks,Karachi,Pakistan,Online Platform,Software Engineer;Data Scientist;AI/ML Engineer;Cloud Engineer,Undergraduate,0,600,9,True,coursera.org
+Coursera — Tech Tracks,Lahore,Pakistan,Online Platform,Software Engineer;Data Scientist;AI/ML Engineer;Cloud Engineer,Undergraduate,0,600,9,True,coursera.org
+Coursera — Tech Tracks,Islamabad,Pakistan,Online Platform,Software Engineer;Data Scientist;AI/ML Engineer;Cloud Engineer,Undergraduate,0,600,9,True,coursera.org
+Coursera — Tech Tracks,Delhi,India,Online Platform,Software Engineer;Data Scientist;AI/ML Engineer;Cloud Engineer,Undergraduate,0,600,9,True,coursera.org
+Coursera — Tech Tracks,Dubai,UAE,Online Platform,Software Engineer;Data Scientist;AI/ML Engineer;Cloud Engineer,Undergraduate,0,600,9,True,coursera.org
+Udemy — Design & Creative,Karachi,Pakistan,Online Platform,Graphic Designer;UX Designer;Content Creator;Interior Designer,High,0,200,8,False,udemy.com
+Udemy — Design & Creative,Lahore,Pakistan,Online Platform,Graphic Designer;UX Designer;Content Creator;Interior Designer,High,0,200,8,False,udemy.com
+Udemy — Design & Creative,Mumbai,India,Online Platform,Graphic Designer;UX Designer;Content Creator;Interior Designer,High,0,200,8,False,udemy.com
+Khan Academy,Karachi,Pakistan,Online Platform,School Teacher;General;Primary Education,Primary,0,0,9,True,khanacademy.org
+Khan Academy,Lahore,Pakistan,Online Platform,School Teacher;General;Primary Education,Primary,0,0,9,True,khanacademy.org
+Khan Academy,Delhi,India,Online Platform,School Teacher;General;Primary Education,Primary,0,0,9,True,khanacademy.org
+edX — Business Track,Dubai,UAE,Online Platform,Business Analyst;Marketing Manager;Entrepreneur;HR Manager,Undergraduate,0,1000,8,True,edx.org
+edX — Business Track,Toronto,Canada,Online Platform,Business Analyst;Marketing Manager;Entrepreneur;HR Manager,Undergraduate,0,1000,8,True,edx.org
+GATE Institute (CS),Lahore,Pakistan,Bootcamp,Software Engineer;Mobile Developer;Game Developer,High,500,2000,7,False,gateinstitute.pk
+Atomcamp Data Science,Karachi,Pakistan,Bootcamp,Data Scientist;Data Engineer;Business Analyst,Undergraduate,400,1500,7,True,atomcamp.com
+Saylani Tech Bootcamp,Karachi,Pakistan,Bootcamp,Software Engineer;Mobile Developer;Content Creator,High,0,200,7,True,saylaniwelfare.com
+Saylani Tech Bootcamp,Lahore,Pakistan,Bootcamp,Software Engineer;Mobile Developer;Content Creator,High,0,200,7,True,saylaniwelfare.com
+Corvit Systems,Lahore,Pakistan,Bootcamp,Cybersecurity Analyst;Cloud Engineer;DevOps Engineer,High,300,1200,7,False,corvit.com
+Corvit Systems,Karachi,Pakistan,Bootcamp,Cybersecurity Analyst;Cloud Engineer;DevOps Engineer,High,300,1200,7,False,corvit.com
