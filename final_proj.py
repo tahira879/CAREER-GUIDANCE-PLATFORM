@@ -698,12 +698,27 @@ def augment(df, n=600):
 
 def do_train(df, n_aug=600):
     aug = augment(df, n_aug)
-    X = aug[FEATURE_COLS].values
-    y = aug["career"].values
+    
+    # FIX: Explicitly convert to numpy arrays to avoid PyArrow errors on Cloud
+    # Ensure features are float numpy arrays
+    X = aug[FEATURE_COLS].astype(float).to_numpy()
+    # Ensure target (career names) is a standard object numpy array (not PyArrow string)
+    y = aug["career"].to_numpy(dtype=object)
+    
     sc = MinMaxScaler()
     Xs = sc.fit_transform(X)
+    
+    # train_test_split now receives standard numpy arrays
     Xtr, Xte, ytr, yte = train_test_split(Xs, y, test_size=.2, random_state=42)
+    
     rf = RandomForestClassifier(n_estimators=200, max_depth=12, random_state=42, n_jobs=-1)
+    rf.fit(Xtr, ytr)
+    acc = accuracy_score(yte, rf.predict(Xte))
+    cv = cross_val_score(rf, Xs, y, cv=5)
+    joblib.dump(rf, MODEL_PATH)
+    joblib.dump(sc, SCALER_PATH)
+    return {"model":rf,"scaler":sc,"accuracy":acc,"cv_mean":cv.mean(),"cv_std":cv.std(),
+            "fi":dict(zip(FEATURE_COLS, rf.feature_importances_)),"n_samples":len(aug)}
     rf.fit(Xtr, ytr)
     acc = accuracy_score(yte, rf.predict(Xte))
     cv = cross_val_score(rf, Xs, y, cv=5)
