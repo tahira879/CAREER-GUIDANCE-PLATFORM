@@ -1,1917 +1,2615 @@
-"""PathFinder AI — Career Intelligence Platform | Master Build"""
-import streamlit as st, os, re, io, time
-import streamlit.components.v1 as components
+"""
+PathFinder AI — Career Guidance Platform
+Theme: PathFinder (Plus Jakarta Sans, #3D52A0/#7091E6/#EDE8F5)
+Single file. Run: streamlit run main.py
+pip install streamlit groq python-dotenv pandas numpy scikit-learn plotly joblib PyPDF2 docx2txt xgboost
+Place career_guidance_dataset.csv and institutes_dataset.csv in the same folder.
+"""
 
-try:
-    from groq import Groq; GROQ_OK=True
-except: GROQ_OK=False
-try:
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.model_selection import cross_val_score, train_test_split
-    import numpy as np; ML_OK=True
-except:
-    ML_OK=False
-    import numpy as np
-try: import PyPDF2; PDF_OK=True
-except: PDF_OK=False
-try: import docx2txt; DOCX_OK=True
-except: DOCX_OK=False
+import os, io, json, time, re, warnings
+import numpy as np
+import pandas as pd
+import streamlit as st
+import plotly.graph_objects as go
+import plotly.express as px
+from dotenv import load_dotenv
+from groq import Groq
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.metrics import accuracy_score
+import joblib
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except: pass
+try:    import PyPDF2;    HAS_PDF  = True
+except: HAS_PDF  = False
+try:    import docx2txt;  HAS_DOCX = True
+except: HAS_DOCX = False
 
-GROQ_KEY = os.getenv("GROQ_API_KEY","")
+warnings.filterwarnings("ignore")
+load_dotenv()
 
-def init():
-    for k,v in {
-        "page":"landing","logged_in":False,"current_user":None,"accounts":{},
-        "app_page":"home","profile":{},"matches":[],"chat_hist":[],
-        "roadmap_txt":"","inst_result":"","resume_result":None,
-        "train_done":False,"sel_career":"UX Designer","train_results":None,
-        "roadmap_mode":"education","job_search_result":""
-    }.items():
-        if k not in st.session_state: st.session_state[k]=v
-init()
+# ═══════════════════════════════════════════════════════════════════
+# PAGE CONFIG
+# ═══════════════════════════════════════════════════════════════════
+st.set_page_config(
+    page_title="PathFinder AI | Career Compass",
+    page_icon="🧭", layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-CAREERS=[
-    {"title":"UX Designer","industry":"Technology","salary":90000,"growth":20,"burnout":3,"automation":15,"wlb":8,"creativity":9,"social":6,"remote":8,"icon":"🎨","img":"https://images.unsplash.com/photo-1561070791-2526d30994b5?w=400&q=80","skills":["Figma","User Research","Prototyping","CSS","Wireframing"],"edu":"BS Design / HCI"},
-    {"title":"Software Engineer","industry":"Technology","salary":110000,"growth":25,"burnout":4,"automation":20,"wlb":7,"creativity":6,"social":4,"remote":9,"icon":"💻","img":"https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=400&q=80","skills":["Python","JavaScript","System Design","Algorithms","Git"],"edu":"BS Computer Science"},
-    {"title":"Data Scientist","industry":"Technology","salary":120000,"growth":35,"burnout":4,"automation":18,"wlb":7,"creativity":7,"social":4,"remote":8,"icon":"📊","img":"https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&q=80","skills":["Python","SQL","Machine Learning","Statistics","Pandas"],"edu":"BS CS / Statistics"},
-    {"title":"AI/ML Engineer","industry":"Technology","salary":135000,"growth":40,"burnout":5,"automation":10,"wlb":6,"creativity":8,"social":4,"remote":8,"icon":"🤖","img":"https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=400&q=80","skills":["Python","TensorFlow","PyTorch","Deep Learning","NLP"],"edu":"BS CS / MS AI"},
-    {"title":"Product Manager","industry":"Technology","salary":130000,"growth":22,"burnout":7,"automation":12,"wlb":6,"creativity":7,"social":8,"remote":7,"icon":"🎯","img":"https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=400&q=80","skills":["Strategy","Analytics","Agile","Communication","Roadmapping"],"edu":"BS Business / CS"},
-    {"title":"Cybersecurity Analyst","industry":"Technology","salary":105000,"growth":30,"burnout":6,"automation":8,"wlb":6,"creativity":5,"social":4,"remote":7,"icon":"🔐","img":"https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=400&q=80","skills":["Network Security","Ethical Hacking","SIEM","Python","Risk Assessment"],"edu":"BS CS / Cybersecurity"},
-    {"title":"Cloud Architect","industry":"Technology","salary":145000,"growth":30,"burnout":5,"automation":12,"wlb":7,"creativity":5,"social":4,"remote":9,"icon":"☁️","img":"https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400&q=80","skills":["AWS","Azure","GCP","Terraform","Kubernetes"],"edu":"BS CS / Cloud Certs"},
-    {"title":"DevOps Engineer","industry":"Technology","salary":120000,"growth":28,"burnout":5,"automation":15,"wlb":7,"creativity":5,"social":4,"remote":9,"icon":"⚙️","img":"https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=400&q=80","skills":["Docker","Kubernetes","CI/CD","AWS","Linux"],"edu":"BS CS / DevOps Certs"},
-    {"title":"Game Developer","industry":"Gaming","salary":95000,"growth":18,"burnout":6,"automation":12,"wlb":5,"creativity":9,"social":4,"remote":8,"icon":"🎮","img":"https://images.unsplash.com/photo-1511512578047-dfb367046420?w=400&q=80","skills":["Unity","Unreal Engine","C#","C++","Game Design"],"edu":"BS CS / Game Design"},
-    {"title":"Graphic Designer","industry":"Creative","salary":55000,"growth":10,"burnout":3,"automation":20,"wlb":8,"creativity":10,"social":5,"remote":7,"icon":"🎭","img":"https://images.unsplash.com/photo-1626785774573-4b799315345d?w=400&q=80","skills":["Photoshop","Illustrator","Branding","Typography","Color Theory"],"edu":"BS Graphic Design"},
-    {"title":"Doctor","industry":"Healthcare","salary":200000,"growth":18,"burnout":8,"automation":5,"wlb":3,"creativity":4,"social":9,"remote":2,"icon":"🏥","img":"https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&q=80","skills":["Clinical Diagnosis","Patient Care","Medical Research","Pharmacology","Surgery"],"edu":"MBBS + Specialization"},
-    {"title":"Nurse","industry":"Healthcare","salary":70000,"growth":15,"burnout":7,"automation":4,"wlb":5,"creativity":3,"social":9,"remote":2,"icon":"💊","img":"https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=400&q=80","skills":["Patient Care","Clinical Skills","Communication","Emergency Response","Medical Knowledge"],"edu":"BS Nursing / RN License"},
-    {"title":"Pharmacist","industry":"Healthcare","salary":120000,"growth":3,"burnout":4,"automation":22,"wlb":7,"creativity":2,"social":7,"remote":3,"icon":"🧬","img":"https://images.unsplash.com/photo-1576602976047-174e57a47881?w=400&q=80","skills":["Pharmacology","Patient Counseling","Drug Interactions","Dispensing","Healthcare"],"edu":"PharmD / BS Pharmacy"},
-    {"title":"Physiotherapist","industry":"Healthcare","salary":80000,"growth":18,"burnout":4,"automation":5,"wlb":7,"creativity":5,"social":9,"remote":3,"icon":"🏃","img":"https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80","skills":["Manual Therapy","Exercise Prescription","Anatomy","Patient Assessment","Rehabilitation"],"edu":"BS/MS Physiotherapy"},
-    {"title":"Dentist","industry":"Healthcare","salary":170000,"growth":8,"burnout":5,"automation":6,"wlb":6,"creativity":4,"social":8,"remote":1,"icon":"🦷","img":"https://images.unsplash.com/photo-1606811971618-4486d14f3f99?w=400&q=80","skills":["Oral Surgery","Diagnostics","Patient Care","Dental Procedures","Anatomy"],"edu":"BDS / DDS"},
-    {"title":"Investment Banker","industry":"Finance","salary":180000,"growth":8,"burnout":9,"automation":25,"wlb":2,"creativity":4,"social":7,"remote":4,"icon":"💹","img":"https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=400&q=80","skills":["Financial Modeling","Excel","Valuation","M&A","Risk Analysis"],"edu":"BS Finance / MBA"},
-    {"title":"Financial Analyst","industry":"Finance","salary":85000,"growth":11,"burnout":5,"automation":28,"wlb":6,"creativity":4,"social":5,"remote":6,"icon":"📈","img":"https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&q=80","skills":["Excel","Financial Modeling","Data Analysis","Forecasting","Bloomberg"],"edu":"BS Finance / CFA"},
-    {"title":"Accountant","industry":"Finance","salary":70000,"growth":7,"burnout":4,"automation":35,"wlb":7,"creativity":2,"social":4,"remote":6,"icon":"🧮","img":"https://images.unsplash.com/photo-1565514158740-064f34bd5fa5?w=400&q=80","skills":["Accounting","Tax Law","Excel","Auditing","QuickBooks"],"edu":"BS Accounting / CPA"},
-    {"title":"Marketing Manager","industry":"Marketing","salary":95000,"growth":15,"burnout":5,"automation":18,"wlb":6,"creativity":8,"social":7,"remote":7,"icon":"📣","img":"https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&q=80","skills":["Digital Marketing","SEO","Analytics","Content Strategy","Brand Management"],"edu":"BS Marketing / Communications"},
-    {"title":"Content Creator","industry":"Marketing","salary":65000,"growth":20,"burnout":4,"automation":15,"wlb":8,"creativity":10,"social":6,"remote":10,"icon":"🎬","img":"https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=400&q=80","skills":["Video Editing","Copywriting","Social Media","SEO","Brand Storytelling"],"edu":"BS Communications / Self-Taught"},
-    {"title":"Mechanical Engineer","industry":"Engineering","salary":90000,"growth":7,"burnout":5,"automation":20,"wlb":6,"creativity":5,"social":4,"remote":4,"icon":"⚙️","img":"https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=400&q=80","skills":["CAD","Thermodynamics","Materials Science","Project Management","AutoCAD"],"edu":"BS Mechanical Engineering"},
-    {"title":"Civil Engineer","industry":"Engineering","salary":85000,"growth":8,"burnout":5,"automation":12,"wlb":6,"creativity":4,"social":5,"remote":3,"icon":"🏗️","img":"https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400&q=80","skills":["Structural Analysis","AutoCAD","Project Management","Surveying","Materials"],"edu":"BS Civil Engineering"},
-    {"title":"Professor","industry":"Education","salary":90000,"growth":10,"burnout":4,"automation":8,"wlb":8,"creativity":7,"social":8,"remote":5,"icon":"🎓","img":"https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&q=80","skills":["Research","Teaching","Academic Writing","Curriculum Design","Subject Expertise"],"edu":"PhD in Relevant Field"},
-    {"title":"High School Teacher","industry":"Education","salary":50000,"growth":8,"burnout":5,"automation":8,"wlb":7,"creativity":6,"social":8,"remote":4,"icon":"🏫","img":"https://images.unsplash.com/photo-1509062522246-3755977927d7?w=400&q=80","skills":["Curriculum Design","Classroom Management","Communication","Mentoring","Subject Expertise"],"edu":"BS Education + Teaching Cert"},
-    {"title":"Architect","industry":"Design","salary":80000,"growth":12,"burnout":6,"automation":12,"wlb":5,"creativity":9,"social":5,"remote":4,"icon":"🏛️","img":"https://images.unsplash.com/photo-1486325212027-8081e485255e?w=400&q=80","skills":["AutoCAD","SketchUp","BIM","Design Theory","Project Management"],"edu":"B.Arch / M.Arch"},
-    {"title":"Psychologist","industry":"Healthcare","salary":90000,"growth":22,"burnout":5,"automation":3,"wlb":7,"creativity":5,"social":10,"remote":6,"icon":"🧠","img":"https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&q=80","skills":["Counseling","CBT","Assessment","Research","Empathy"],"edu":"BS/MS/PhD Psychology"},
-    {"title":"Lawyer","industry":"Legal","salary":130000,"growth":9,"burnout":7,"automation":10,"wlb":4,"creativity":5,"social":7,"remote":5,"icon":"⚖️","img":"https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=400&q=80","skills":["Legal Research","Contract Law","Litigation","Negotiation","Critical Thinking"],"edu":"LLB / JD"},
-    {"title":"Surgeon","industry":"Healthcare","salary":350000,"growth":15,"burnout":9,"automation":3,"wlb":2,"creativity":3,"social":6,"remote":1,"icon":"⚕️","img":"https://images.unsplash.com/photo-1551190822-a9333d879b1f?w=400&q=80","skills":["Surgical Techniques","Anatomy","Clinical Decision-Making","Patient Care","Medical Research"],"edu":"MBBS + MS Surgery + Fellowship"},
-    {"title":"Environmental Scientist","industry":"Science","salary":75000,"growth":14,"burnout":4,"automation":12,"wlb":7,"creativity":6,"social":5,"remote":5,"icon":"🌿","img":"https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&q=80","skills":["Environmental Analysis","Data Collection","GIS","Research","Policy Writing"],"edu":"BS Environmental Science"},
-    {"title":"Journalist","industry":"Media","salary":55000,"growth":5,"burnout":6,"automation":30,"wlb":5,"creativity":8,"social":7,"remote":7,"icon":"📰","img":"https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=400&q=80","skills":["Writing","Research","Interviewing","Storytelling","Media Ethics"],"edu":"BS Journalism"},
-]
-
-def h(html): st.markdown(html, unsafe_allow_html=True)
-
-def validate_password(pw):
-    if len(pw) > 8: return False, "Password must be max 8 characters."
-    if not re.search(r'[A-Z]', pw): return False, "Password must have at least 1 uppercase letter."
-    if not re.search(r'\d', pw): return False, "Password must have at least 1 digit."
-    return True, ""
-
-def ai_call(messages, system, max_tokens=700):
-    if not GROQ_KEY or not GROQ_OK:
-        return "⚠️ Add your GROQ_API_KEY environment variable to enable AI responses."
-    try:
-        client=Groq(api_key=GROQ_KEY)
-        r=client.chat.completions.create(model="llama3-70b-8192",max_tokens=max_tokens,
-            messages=[{"role":"system","content":system}]+messages)
-        return r.choices[0].message.content
-    except Exception as e: return f"⚠️ AI Error: {e}"
-
-def match_careers(p):
-    scored=[]
-    for c in CAREERS:
-        s=((1-abs(p.get("wlb",7)-c["wlb"])/9)*25+(1-abs(p.get("creativity",5)-c["creativity"])/9)*20
-          +(1-abs(p.get("social",5)-c["social"])/9)*15+(1-abs(p.get("remote",7)-c["remote"])/9)*12
-          +(c["growth"]/40)*p.get("income",7)*0.015*10-(c["burnout"]/10)*8-(c["automation"]/100)*5)
-        scored.append((c,round(min(99,max(30,s*1.3)),1)))
-    return sorted(scored,key=lambda x:x[1],reverse=True)
-
-def read_file(f):
-    if not f: return ""
-    try:
-        if f.name.endswith(".txt"): return f.read().decode("utf-8","ignore")
-        elif f.name.endswith(".pdf") and PDF_OK:
-            r=PyPDF2.PdfReader(io.BytesIO(f.read()))
-            return "\n".join(pg.extract_text() or "" for pg in r.pages)
-        elif f.name.endswith(".docx") and DOCX_OK: return docx2txt.process(io.BytesIO(f.read()))
-        else: return f.read().decode("utf-8","ignore")
-    except: return ""
-
-def detect_skills(text):
-    cats={"Programming":["python","javascript","java","c++","c#","react","node","django"],
-          "Data & AI":["machine learning","deep learning","tensorflow","pytorch","pandas","sql"],
-          "Design":["figma","photoshop","illustrator","ux","ui","prototyping","wireframing"],
-          "Cloud/DevOps":["aws","azure","gcp","docker","kubernetes","terraform","linux"],
-          "Business":["project management","agile","marketing","seo","excel","leadership"],
-          "Soft Skills":["teamwork","problem solving","critical thinking","creativity","adaptability"]}
-    tl=text.lower(); found={}
-    for cat,skills in cats.items():
-        m=[s for s in skills if s in tl]
-        if m: found[cat]=m
-    return found
-
-def score_resume(text):
-    bd=[]; tot=0
-    w=len(text.split()); wc=min(20,round((min(w,500)/500)*20))
-    bd.append({"l":"Content Length","s":wc,"m":20,"c":"#1d4ed8"}); tot+=wc
-    sc=detect_skills(text); sk_cnt=sum(len(v) for v in sc.values()); sk=min(25,sk_cnt*3)
-    bd.append({"l":"Skills Detected","s":sk,"m":25,"c":"#7c3aed"}); tot+=sk
-    ce=(6 if "@" in text else 0)+(4 if re.search(r'(\+\d{10,12}|\d{10,11})',text) else 0)+(3 if "linkedin" in text.lower() else 0)+(2 if "github" in text.lower() else 0)
-    ce=min(15,ce); bd.append({"l":"Contact Info","s":ce,"m":15,"c":"#059669"}); tot+=ce
-    edu=15 if re.search(r'(education|school|college|university|degree|bachelor|master)',text,re.I) else 0
-    bd.append({"l":"Education Section","s":edu,"m":15,"c":"#d97706"}); tot+=edu
-    qnt=15 if re.search(r'(\d+%|\$\d+|\d+\s*(projects?|clients?|users?))',text,re.I) else 0
-    bd.append({"l":"Quantified Results","s":qnt,"m":15,"c":"#7c3aed"}); tot+=qnt
-    vbs=["built","designed","led","created","analyzed","managed","increased","developed","launched","implemented"]
-    vc=sum(1 for v in vbs if v in text.lower()); av=min(10,vc*2)
-    bd.append({"l":"Action Verbs","s":av,"m":10,"c":"#dc2626"}); tot+=av
-    return min(100,tot),bd,sc
-
-def pbar(label,val,mx,color="#1d4ed8",suf=""):
-    pct=min(100,round((val/mx)*100)) if mx else 0
-    d=suf if suf else str(val)
-    return f'''<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-<span style="font-size:12px;font-weight:600;color:#1E293B;min-width:148px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{label}</span>
-<div style="flex:1;height:7px;background:#E2E8F0;border-radius:99px;overflow:hidden;">
-<div style="width:{pct}%;height:7px;background:{color};border-radius:99px;transition:width .6s;"></div></div>
-<span style="font-size:12px;font-weight:800;color:{color};min-width:54px;text-align:right;font-family:'Plus Jakarta Sans',sans-serif;">{d}</span></div>'''
-
-def badge(t,cls="blue"):
-    m={"blue":("#eff6ff","#1d4ed8","#bfdbfe"),"teal":("#ecfeff","#0891b2","#a5f3fc"),
-       "green":("#f0fdf4","#16a34a","#bbf7d0"),"amber":("#fffbeb","#d97706","#fde68a"),
-       "red":("#fef2f2","#dc2626","#fecaca"),"violet":("#f5f3ff","#7c3aed","#ddd6fe")}
-    bg,c,bo=m.get(cls,m["blue"])
-    return f'<span style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:99px;font-size:10.5px;font-weight:700;background:{bg};color:{c};border:1.5px solid {bo};margin:2px;">{t}</span>'
-
-def chip(t):
-    return f'<span style="background:#f0f7ff;border:1.5px solid #bfdbfe;border-radius:7px;padding:3px 10px;font-size:11px;font-weight:600;color:#1d4ed8;margin:2px;display:inline-block;">{t}</span>'
-
-
-# ── PAGE CONFIG ──
-st.set_page_config(page_title="PathFinder AI",page_icon="🧭",layout="wide",initial_sidebar_state="auto")
-pg = st.session_state.page
-
-# Hide sidebar + controls on public pages
-if pg in ("landing","login","signup"):
-    h("""<style>
-section[data-testid="stSidebar"]{display:none!important;}
-[data-testid="collapsedControl"]{display:none!important;}
-</style>""")
-
-# ══════════════════════════════════════════════════════
-# GLOBAL CSS
-# ══════════════════════════════════════════════════════
-h("""<style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Syne:wght@700;800;900&display=swap');
-:root{--P:#1d4ed8;--S:#2563eb;--A:#60a5fa;--bg:#f0f7ff;--card:#fff;--border:#bfdbfe;--text:#0f172a;--muted:#64748b;}
-*,*::before,*::after{box-sizing:border-box;}
-html,body,[data-testid="stAppViewContainer"],[data-testid="stMain"]{background:var(--bg)!important;font-family:'Plus Jakarta Sans',sans-serif!important;color:var(--text)!important;}
-#MainMenu,footer,header,[data-testid="stHeader"],[data-testid="stToolbar"],[data-testid="stDecoration"]{visibility:hidden!important;display:none!important;}
-[data-testid="stSidebarNav"]{display:none!important;}
-.block-container{padding:0!important;max-width:100%!important;}
-[data-testid="stMainBlockContainer"]{padding:0!important;}
-[data-testid="stSidebarContent"]{padding:0!important;}
-section[data-testid="stSidebar"]>div:first-child{padding:0!important;}
-
-/* ── SIDEBAR ── */
-section[data-testid="stSidebar"]{
-  background:linear-gradient(180deg,#04081a 0%,#070d2e 30%,#0b1540 60%,#112058 100%)!important;
-  border-right:1px solid rgba(96,165,250,.15)!important;
-  min-width:256px!important;
+# ═══════════════════════════════════════════════════════════════════
+# SESSION STATE
+# ═══════════════════════════════════════════════════════════════════
+DEFAULTS = {
+    "page":"landing","modal":None,
+    "logged_in":False,"current_user":None,"accounts":{},
+    "app_page":"home","user_profile":{},"career_matches":None,
+    "selected_career":None,"roadmap":None,
+    "chat_history":[],"resume_analysis":None,
+    "persona_summary":None,"model_results":None,
+    "custom_career_input":"",
 }
-section[data-testid="stSidebar"] .stButton>button{
-  background:transparent!important;
-  color:rgba(148,197,253,.6)!important;
-  border:1px solid transparent!important;
-  border-radius:10px!important;
-  font-size:13px!important;font-weight:600!important;text-align:left!important;
-  padding:10px 14px 10px 16px!important;width:100%!important;
+for k,v in DEFAULTS.items():
+    if k not in st.session_state: st.session_state[k]=v
+
+# ═══════════════════════════════════════════════════════════════════
+# CSS — PathFinder Theme (UNCHANGED)
+# ═══════════════════════════════════════════════════════════════════
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&family=Syne:wght@700;800&display=swap');
+:root{
+  --primary:#3D52A0;--secondary:#7091E6;--accent:#ADBBDA;
+  --bg:#EDE8F5;--card:#ffffff;
+  --text:#1a1a2e;--muted:#8697C4;--border:#d0d7f0;
+  --success:#22c55e;--warning:#f59e0b;--danger:#ef4444;
+}
+*{box-sizing:border-box;}
+html,body,[class*="css"]{
   font-family:'Plus Jakarta Sans',sans-serif!important;
-  transition:all .22s cubic-bezier(.34,1.56,.64,1)!important;
-  margin-bottom:2px!important;position:relative!important;
-  letter-spacing:.1px!important;
+  background-color:var(--bg)!important;color:var(--text)!important;
 }
-section[data-testid="stSidebar"] .stButton>button:hover{
-  background:linear-gradient(90deg,rgba(29,78,216,.28),rgba(29,78,216,.10))!important;
-  color:#c7dcff!important;
-  border-color:rgba(96,165,250,.4)!important;
-  transform:translateX(7px)!important;
-  box-shadow:0 3px 18px rgba(29,78,216,.25),inset 3px 0 0 rgba(96,165,250,.7)!important;
-  padding-left:20px!important;
+[data-testid="stSidebar"]{
+  background:linear-gradient(180deg,#1e2d6b 0%,#3D52A0 55%,#2a3c8a 100%)!important;
+  border-right:3px solid var(--secondary)!important;
 }
-section[data-testid="stSidebar"] .stButton>button:active{
-  transform:translateX(4px) scale(.98)!important;
+[data-testid="stSidebar"] *{color:#EDE8F5!important;}
+[data-testid="stSidebar"] .stButton>button{
+  background:rgba(255,255,255,0.10)!important;
+  border:1px solid rgba(255,255,255,0.22)!important;
+  color:#EDE8F5!important;border-radius:14px!important;
+  font-weight:700!important;padding:10px 16px!important;
+  font-family:'Plus Jakarta Sans',sans-serif!important;
+  transition:all 0.2s!important;width:100%!important;text-align:left!important;
 }
-section[data-testid="stSidebar"] .stButton>button:focus{
-  outline:none!important;
-  box-shadow:0 0 0 2px rgba(96,165,250,.35),inset 3px 0 0 #60a5fa!important;
-  color:white!important;
+[data-testid="stSidebar"] .stButton>button:hover{
+  background:rgba(255,255,255,0.22)!important;transform:translateX(5px)!important;
 }
-
-/* ── TABS ── */
-.stTabs [data-baseweb="tab-list"]{gap:2px;border-bottom:2px solid #bfdbfe;background:transparent!important;}
-.stTabs [data-baseweb="tab"]{font-size:13px;font-weight:700;color:var(--muted);padding:9px 18px;border-radius:8px 8px 0 0;font-family:'Plus Jakarta Sans',sans-serif!important;background:transparent!important;transition:color .2s;}
-.stTabs [data-baseweb="tab"]:hover{color:var(--P)!important;}
-.stTabs [aria-selected="true"]{color:var(--P)!important;background:rgba(29,78,216,.06)!important;}
-.stTabs [data-baseweb="tab-highlight"]{background:var(--P)!important;}
-.stTabs [data-baseweb="tab-panel"]{padding:18px 0 0!important;background:transparent!important;}
-
-/* ── INPUTS ── */
-input[type=range]{accent-color:var(--P);}
-.stButton>button{font-family:'Plus Jakarta Sans',sans-serif!important;font-weight:700!important;border-radius:10px!important;transition:all .2s!important;}
-.stButton>button:hover{transform:translateY(-2px)!important;box-shadow:0 6px 20px rgba(29,78,216,.28)!important;}
-.stTextInput>div>div>input,.stNumberInput>div>div>input{background:#f8faff!important;border:2px solid #bfdbfe!important;border-radius:10px!important;font-family:'Plus Jakarta Sans',sans-serif!important;color:var(--text)!important;transition:border-color .2s,box-shadow .2s!important;font-weight:500!important;}
-.stTextInput>div>div>input:focus,.stNumberInput>div>div>input:focus{border-color:var(--P)!important;box-shadow:0 0 0 3px rgba(29,78,216,.12)!important;}
-.stSelectbox>div>div{background:#f8faff!important;border:2px solid #bfdbfe!important;border-radius:10px!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
-.stTextArea>div>div>textarea{background:#f8faff!important;border:2px solid #bfdbfe!important;border-radius:10px!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
-label{font-family:'Plus Jakarta Sans',sans-serif!important;font-weight:700!important;color:#1d4ed8!important;font-size:12px!important;letter-spacing:.3px!important;}
-.stFileUploader>div{background:#f8faff!important;border:2px dashed #bfdbfe!important;border-radius:12px!important;}
-
-/* ── CARDS ── */
+.pf-nav{
+  position:fixed;top:0;width:100%;height:70px;
+  background:rgba(237,232,245,0.97);backdrop-filter:blur(20px);
+  z-index:1000;display:flex;align-items:center;
+  padding:0 5%;border-bottom:2px solid var(--primary);
+  box-shadow:0 2px 24px rgba(61,82,160,0.13);
+}
+.pf-brand{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--primary);letter-spacing:-1px;}
+.pf-brand span{color:var(--secondary);}
+.hero-wrap{width:100%;height:80vh;overflow:hidden;position:relative;}
+.hero-img{width:100%;height:100%;
+  background:url('https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=80&w=2000') no-repeat center;
+  background-size:cover;transition:transform 3s ease;}
+.hero-wrap:hover .hero-img{transform:scale(1.07);}
+.hero-overlay{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  background:linear-gradient(135deg,rgba(13,17,23,.72),rgba(61,82,160,.55));
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  color:white;text-align:center;padding:0 20px;
+}
+.hero-title{
+  font-family:'Syne',sans-serif;font-size:82px;font-weight:900;streamlit run my.py
+  letter-spacing:-4px;margin:0;color:white;
+  text-shadow:0 4px 30px rgba(0,0,0,.4);
+  animation:heroIn .8s ease forwards;
+}
+@keyframes heroIn{from{opacity:0;transform:translateY(40px);}to{opacity:1;transform:translateY(0);}}
+.glass-card{
+  background:rgba(255,255,255,.8);backdrop-filter:blur(12px);
+  padding:36px;border-radius:28px;
+  border:2px solid rgba(61,82,160,.1);
+  transition:all .4s ease;text-align:left;margin-bottom:24px;
+  min-height:260px;display:flex;flex-direction:column;justify-content:center;
+}
+.glass-card:hover{
+  background:var(--primary);transform:translateY(-12px) scale(1.02);
+  box-shadow:0 32px 64px rgba(61,82,160,.35);border-color:var(--secondary);
+}
+.glass-card h3{color:var(--primary);font-weight:800;font-size:22px;margin-bottom:14px;transition:.3s;}
+.glass-card p{color:#2D3748;font-size:14px;line-height:1.75;transition:.3s;}
+.glass-card:hover h3,.glass-card:hover p{color:white!important;}
 .pf-card{
-  background:white;border-radius:18px;padding:22px;
-  border:1.5px solid #e0efff;
-  box-shadow:0 4px 24px rgba(29,78,216,.07);
-  margin-bottom:16px;
-  transition:border-color .3s,box-shadow .3s,transform .3s;
-  position:relative;overflow:hidden;
+  background:white;border-radius:20px;padding:28px;
+  border:2px solid rgba(61,82,160,.08);
+  box-shadow:0 4px 24px rgba(61,82,160,.08);
+  margin-bottom:20px;transition:border-color .2s;
 }
-.pf-card::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:1px;
-  background:linear-gradient(90deg,transparent,rgba(96,165,250,.4),transparent);
-  opacity:0;transition:opacity .3s;
+.pf-card:hover{border-color:var(--secondary);}
+.pf-card-title{
+  font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;
+  color:var(--primary);margin-bottom:16px;display:flex;align-items:center;gap:8px;
 }
-.pf-card:hover{
-  border-color:#93c5fd;
-  box-shadow:0 12px 40px rgba(29,78,216,.13);
-  transform:translateY(-2px);
-}
-.pf-card:hover::before{opacity:1;}
-
-.stat-card{
-  background:white;border-radius:16px;padding:20px;
-  border:1.5px solid #e0efff;text-align:center;
-  transition:all .3s cubic-bezier(.34,1.56,.64,1);
-  margin-bottom:16px;position:relative;overflow:hidden;
-}
-.stat-card::after{
-  content:'';position:absolute;bottom:0;left:0;right:0;height:3px;
-  background:linear-gradient(90deg,#1d4ed8,#60a5fa,#7c3aed);
-  transform:scaleX(0);transition:transform .3s;transform-origin:left;
-}
-.stat-card:hover{
-  transform:translateY(-6px);
-  border-color:#93c5fd;
-  box-shadow:0 16px 40px rgba(29,78,216,.15);
-}
-.stat-card:hover::after{transform:scaleX(1);}
-
 .match-card{
-  background:white;border:1.5px solid #e0efff;border-radius:18px;
-  padding:20px;margin-bottom:16px;position:relative;overflow:hidden;
-  transition:all .3s;box-shadow:0 4px 16px rgba(29,78,216,.05);
-}
-.match-card:hover{
-  transform:translateY(-5px);
-  box-shadow:0 20px 48px rgba(29,78,216,.14);
-  border-color:#93c5fd;
-}
-.match-card.gold-pick{
-  border-color:#93c5fd;
-  box-shadow:0 6px 28px rgba(29,78,216,.12);
-}
-.match-card.gold-pick::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:4px;
-  background:linear-gradient(90deg,#1d4ed8,#60a5fa,#7c3aed);
-}
-
-.qs-card{
-  background:white;border-radius:16px;padding:18px 14px;
-  border:1.5px solid #e0efff;text-align:center;
-  transition:all .3s cubic-bezier(.34,1.56,.64,1);margin-bottom:14px;
+  background:white;border:2px solid rgba(61,82,160,.1);
+  border-radius:18px;padding:22px;margin-bottom:14px;
   position:relative;overflow:hidden;
+  transition:all .3s;box-shadow:0 2px 16px rgba(61,82,160,.07);
 }
-.qs-card:hover{
-  transform:translateY(-6px);
-  box-shadow:0 16px 36px rgba(29,78,216,.12);
-  border-color:#93c5fd;
+.match-card:hover{box-shadow:0 8px 32px rgba(61,82,160,.18);transform:translateY(-3px);}
+.match-card.top{border-color:var(--primary);}
+.match-rank{
+  font-family:'Syne',sans-serif;font-size:2.4rem;font-weight:900;
+  color:var(--primary);opacity:.18;position:absolute;top:10px;right:18px;
 }
-
-.tl-body{
-  background:white;border:1.5px solid #e0efff;border-radius:14px;
-  padding:14px 18px;flex:1;margin-bottom:13px;transition:all .28s;
-  box-shadow:0 2px 10px rgba(29,78,216,.04);
-}
-.tl-body:hover{
-  border-color:#93c5fd;
-  transform:translateX(6px);
-  box-shadow:0 8px 28px rgba(29,78,216,.1);
-}
-
-.inst-card{border-radius:14px;overflow:hidden;border:1.5px solid #e0efff;transition:all .3s;}
-.inst-card:hover{transform:translateY(-5px);box-shadow:0 18px 44px rgba(29,78,216,.14);border-color:#93c5fd;}
-
-/* ── TOPBAR ── */
-.topbar{
-  position:sticky;top:0;
-  background:rgba(248,252,255,.96);
-  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
-  z-index:100;padding:10px 28px;
-  border-bottom:1.5px solid rgba(191,219,254,.7);
-  display:flex;align-items:center;justify-content:space-between;
-  box-shadow:0 2px 24px rgba(29,78,216,.08);
-}
-
-/* ── AUTH ── */
-.auth-page-bg{
-  min-height:100vh;
-  background:linear-gradient(145deg,#eef4ff 0%,#e8f0fe 40%,#dbeafe 70%,#f0f4ff 100%);
-  display:flex;align-items:center;justify-content:center;
-  padding:40px 20px;
-  position:relative;overflow:hidden;
-}
-.auth-page-bg::before{
-  content:'';position:absolute;top:-150px;right:-150px;
-  width:500px;height:500px;border-radius:50%;
-  background:radial-gradient(circle,rgba(96,165,250,.2),transparent 70%);
-  pointer-events:none;
-}
-.auth-page-bg::after{
-  content:'';position:absolute;bottom:-120px;left:-120px;
-  width:450px;height:450px;border-radius:50%;
-  background:radial-gradient(circle,rgba(167,139,250,.15),transparent 70%);
-  pointer-events:none;
-}
+.match-title{font-family:'Syne',sans-serif;font-size:1.25rem;font-weight:800;margin:0 0 6px;color:var(--text);}
+.score-bar-bg{background:#e8eaf6;border-radius:999px;height:6px;margin:6px 0;}
+.score-bar-fill{height:6px;border-radius:999px;background:linear-gradient(90deg,var(--primary),var(--secondary));transition:width .8s;}
+.badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.72rem;font-weight:700;margin:2px;}
+.badge-blue{background:rgba(61,82,160,.12);color:var(--primary);border:1px solid rgba(61,82,160,.2);}
+.badge-purple{background:rgba(112,145,230,.15);color:#5865a0;border:1px solid rgba(112,145,230,.3);}
+.badge-green{background:rgba(34,197,94,.12);color:#16a34a;border:1px solid rgba(34,197,94,.25);}
+.badge-yellow{background:rgba(245,158,11,.12);color:#b45309;border:1px solid rgba(245,158,11,.25);}
+.badge-red{background:rgba(239,68,68,.12);color:#dc2626;border:1px solid rgba(239,68,68,.25);}
+.badge-teal{background:rgba(20,184,166,.12);color:#0d9488;border:1px solid rgba(20,184,166,.25);}
 .auth-wrap{
-  background:rgba(255,255,255,.97);
-  border-radius:24px;padding:44px 48px;
-  border:1.5px solid rgba(191,219,254,.8);
-  box-shadow:0 16px 64px rgba(29,78,216,.14),0 4px 16px rgba(29,78,216,.08);
-  position:relative;z-index:1;
-  backdrop-filter:blur(10px);
-  width:100%;
+  background:white;border-radius:28px;padding:48px 52px;
+  margin:30px auto;max-width:480px;
+  box-shadow:0 8px 48px rgba(61,82,160,.13);
+  border:2px solid rgba(61,82,160,.08);
+  animation:fadeUp .5s ease;
 }
-.auth-wrap::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:4px;
-  background:linear-gradient(90deg,#1d4ed8,#60a5fa,#7c3aed);
-  border-radius:24px 24px 0 0;
+.dash-wrap{
+  background:white;border-radius:28px;padding:48px 52px;
+  margin:30px auto;max-width:780px;
+  box-shadow:0 8px 48px rgba(61,82,160,.13);
+  border:2px solid rgba(61,82,160,.08);
+  animation:fadeUp .5s ease;
 }
-.li-btn{
-  display:flex;align-items:center;justify-content:center;gap:10px;
-  background:white;color:#0a66c2;border:2px solid #0a66c2;
-  border-radius:11px;padding:11px 16px;font-size:13px;font-weight:700;
-  cursor:pointer;width:100%;margin-top:12px;
-  font-family:'Plus Jakarta Sans',sans-serif;transition:all .22s;
-  box-shadow:0 2px 8px rgba(10,102,194,.1);
-}
-.li-btn:hover{background:#0a66c2;color:white;box-shadow:0 6px 22px rgba(10,102,194,.32);transform:translateY(-2px);}
-.pw-rule{font-size:11px;color:#64748b;margin-top:4px;padding:7px 12px;background:#f0f7ff;border-radius:8px;border-left:3px solid #93c5fd;}
-
-/* ── BUTTONS ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(28px);}to{opacity:1;transform:translateY(0);}}
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
+.dash-field{background:#f3f5fc;border-radius:14px;padding:16px 20px;}
+.dash-field .label{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;}
+.dash-field .value{font-size:15px;font-weight:700;color:var(--text);}
 .stButton>button{
-  background:linear-gradient(135deg,#1d4ed8,#2563eb)!important;
-  color:white!important;border:none!important;
+  background:linear-gradient(90deg,var(--primary),var(--secondary))!important;
+  color:white!important;border:none!important;border-radius:14px!important;
+  padding:11px 28px!important;font-family:'Plus Jakarta Sans',sans-serif!important;
+  font-weight:700!important;font-size:.92rem!important;transition:all .25s!important;
+}
+.stButton>button:hover{transform:translateY(-3px)!important;box-shadow:0 10px 24px rgba(61,82,160,.3)!important;}
+.stTextInput label,.stTextArea label,.stSelectbox label,.stMultiSelect label{
+  color:var(--primary)!important;font-size:13px!important;font-weight:700!important;
+}
+.stTextInput input,.stTextArea textarea{
+  background:#f7f8fc!important;border:1.5px solid var(--border)!important;
+  border-radius:12px!important;color:var(--text)!important;
+}
+.stTextInput input:focus,.stTextArea textarea:focus{
+  border-color:var(--secondary)!important;
+  box-shadow:0 0 0 3px rgba(112,145,230,.18)!important;
+}
+.stSelectbox>div>div,.stMultiSelect>div>div{
+  background:#f7f8fc!important;border:1.5px solid var(--border)!important;
+  border-radius:12px!important;color:var(--text)!important;
+}
+.stTabs [data-baseweb="tab"]{
+  color:var(--muted)!important;background:transparent!important;
+  border-bottom:2px solid transparent!important;
+  font-family:'Plus Jakarta Sans',sans-serif!important;font-weight:700!important;
+}
+.stTabs [aria-selected="true"]{color:var(--primary)!important;border-bottom:2px solid var(--primary)!important;}
+.stTabs [data-baseweb="tab-list"]{background:transparent!important;border-bottom:1px solid var(--border)!important;}
+[data-testid="stMetricValue"]{color:var(--primary)!important;font-family:'Syne',sans-serif!important;font-weight:800!important;}
+[data-testid="stMetricLabel"]{color:var(--muted)!important;font-weight:600!important;}
+.chat-user{
+  background:linear-gradient(90deg,rgba(61,82,160,.12),rgba(112,145,230,.1));
+  border:1px solid rgba(61,82,160,.2);
+  border-radius:18px 18px 2px 18px;padding:12px 18px;margin:8px 0;
+  max-width:78%;margin-left:auto;color:var(--text);
+}
+.chat-ai{
+  background:white;border:1px solid var(--border);
+  border-radius:18px 18px 18px 2px;padding:12px 18px;margin:8px 0;
+  max-width:85%;color:var(--text);
+  box-shadow:0 2px 12px rgba(61,82,160,.06);
+}
+.pf-footer{
+  background:#0d1117;color:#ADBBDA;
+  padding:70px 8% 40px;margin-top:80px;
+  border-top:4px solid var(--primary);
+}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr;gap:60px;}
+.footer-bottom{margin-top:50px;padding-top:22px;border-top:1px solid rgba(255,255,255,.07);text-align:center;color:#555;font-size:13px;}
+.team-name{color:white;font-weight:700;font-size:15px;margin-bottom:4px;}
+.team-link a{color:#7091E6;text-decoration:none;font-size:13px;}
+.team-link a:hover{color:white;text-decoration:underline;}
+.doodle{position:fixed;opacity:.11;z-index:0;width:78px;pointer-events:none;}
+.section-title{font-family:'Syne',sans-serif;font-size:40px;font-weight:900;color:var(--primary);margin-bottom:50px;text-align:center;}
+hr{border-color:var(--border)!important;}
+h1,h2,h3{font-family:'Syne',sans-serif!important;color:var(--primary)!important;}
+.inst-card{border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;
+  background:white;box-shadow:0 4px 16px rgba(61,82,160,.07);
+  transition:all .3s;margin-bottom:20px;}
+.inst-card:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(61,82,160,.15);}
+.journey-container{display:flex;justify-content:space-between;align-items:center;margin:30px 0 40px 0;position:relative;}
+.journey-line{position:absolute;top:25px;left:0;width:100%;height:4px;background:#e2e8f0;z-index:0;}
+.journey-step{position:relative;z-index:1;text-align:center;width:30%;}
+.step-circle{width:50px;height:50px;border-radius:50%;background:white;border:3px solid #cbd5e1;
+  display:flex;align-items:center;justify-content:center;font-size:1.5rem;
+  margin:0 auto 10px auto;transition:all 0.3s;}
+.step-active .step-circle{border-color:var(--primary);background:var(--primary);color:white;
+  box-shadow:0 0 0 4px rgba(61,82,160,0.2);transform:scale(1.1);}
+.step-done .step-circle{background:#22c55e;border-color:#22c55e;color:white;}
+.step-title{font-weight:bold;color:#1e293b;font-size:0.95rem;}
+.step-sub{color:#64748b;font-size:0.8rem;}
+</style>
+<img src="https://img.icons8.com/ios-filled/100/3D52A0/laptop-coding.png"  class="doodle" style="top:22%;left:2%;">
+<img src="https://img.icons8.com/ios-filled/100/3D52A0/brainstorming.png" class="doodle" style="top:58%;right:2%;">
+<img src="https://img.icons8.com/ios-filled/100/3D52A0/books.png"          class="doodle" style="bottom:18%;left:3%;">
+<img src="https://img.icons8.com/ios-filled/100/3D52A0/goal.png"           class="doodle" style="top:14%;right:4%;">
+""", unsafe_allow_html=True)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# CSS — PathFinder Theme (UPDATED WITH HOVER EFFECTS)
+# ═══════════════════════════════════════════════════════════════════
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&family=Syne:wght@700;800&display=swap');
+:root{
+  --primary:#3D52A0;--secondary:#7091E6;--accent:#ADBBDA;
+  --bg:#EDE8F5;--card:#ffffff;
+  --text:#1a1a2e;--muted:#8697C4;--border:#d0d7f0;
+  --success:#22c55e;--warning:#f59e0b;--danger:#ef4444;
+}
+*{box-sizing:border-box;}
+html,body,[class*="css"]{
   font-family:'Plus Jakarta Sans',sans-serif!important;
-  font-weight:700!important;font-size:13.5px!important;
-  border-radius:11px!important;cursor:pointer!important;
-  transition:all .22s cubic-bezier(.34,1.56,.64,1)!important;
-  box-shadow:0 4px 16px rgba(29,78,216,.32)!important;
-  letter-spacing:.1px!important;
+  background-color:var(--bg)!important;color:var(--text)!important;
 }
-.stButton>button:hover{
-  background:linear-gradient(135deg,#1e40af,#1d4ed8)!important;
-  color:white!important;transform:translateY(-3px) scale(1.01)!important;
-  box-shadow:0 10px 28px rgba(29,78,216,.5)!important;
+[data-testid="stSidebar"]{
+  background:linear-gradient(180deg,#1e2d6b 0%,#3D52A0 55%,#2a3c8a 100%)!important;
+  border-right:3px solid var(--secondary)!important;
 }
-.stButton>button:active{transform:translateY(-1px) scale(.99)!important;}
-
-/* ── ANIMATIONS ── */
-@keyframes fadeUp{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
-@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
-@keyframes scaleIn{from{opacity:0;transform:scale(.94);}to{opacity:1;transform:scale(1);}}
-@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
-@keyframes shimmer{0%{background-position:-200% 0;}100%{background-position:200% 0;}}
-@keyframes pulseRing{0%,100%{box-shadow:0 6px 28px rgba(29,78,216,.55),0 0 0 0 rgba(29,78,216,.3);}70%{box-shadow:0 6px 28px rgba(29,78,216,.55),0 0 0 14px rgba(29,78,216,0);}}
-@keyframes chatSlide{from{opacity:0;transform:translateY(20px) scale(.95);}to{opacity:1;transform:translateY(0) scale(1);}}
-@keyframes dot1{0%,80%,100%{opacity:0;}40%{opacity:1;}}
-@keyframes dot2{0%,20%,100%{opacity:0;}60%{opacity:1;}}
-@keyframes dot3{0%,40%,100%{opacity:0;}80%{opacity:1;}}
-@keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-10px);}}
-.fu{animation:fadeUp .5s cubic-bezier(.22,1,.36,1) both;}
-.fi{animation:fadeIn .4s ease both;}
-.si{animation:scaleIn .4s cubic-bezier(.34,1.56,.64,1) both;}
-
-/* ── SKELETON / SHIMMER ── */
-.shimmer{
-  background:linear-gradient(90deg,#f0f4ff 25%,#dbeafe 50%,#f0f4ff 75%);
-  background-size:200% 100%;animation:shimmer 1.8s infinite;
-  border-radius:8px;
+[data-testid="stSidebar"] *{color:#EDE8F5!important;}
+[data-testid="stSidebar"] .stButton>button{
+  background:rgba(255,255,255,0.10)!important;
+  border:1px solid rgba(255,255,255,0.22)!important;
+  color:#EDE8F5!important;border-radius:14px!important;
+  font-weight:700!important;padding:10px 16px!important;
+  font-family:'Plus Jakarta Sans',sans-serif!important;
+  transition:all 0.2s!important;width:100%!important;text-align:left!important;
 }
-
-/* ── CHAT MESSAGES ── */
-.pmsg-ai{
-  background:white;border:1.5px solid #dbeafe;
-  border-radius:16px 16px 16px 4px;
-  padding:11px 15px;font-size:12.5px;line-height:1.78;color:#0f172a;
-  max-width:88%;box-shadow:0 3px 12px rgba(29,78,216,.07);
-  animation:fadeUp .3s ease;
+[data-testid="stSidebar"] .stButton>button:hover{
+  background:rgba(255,255,255,0.22)!important;transform:translateX(5px)!important;
 }
-.pmsg-user{
-  background:linear-gradient(135deg,#1d4ed8,#2563eb);
-  border-radius:16px 16px 4px 16px;
-  padding:11px 15px;font-size:12.5px;line-height:1.78;color:white;
-  max-width:88%;align-self:flex-end;
-  box-shadow:0 4px 16px rgba(29,78,216,.35);
-  animation:fadeUp .3s ease;
+.pf-nav{
+  position:fixed;top:0;width:100%;height:70px;
+  background:rgba(237,232,245,0.97);backdrop-filter:blur(20px);
+  z-index:1000;display:flex;align-items:center;
+  padding:0 5%;border-bottom:2px solid var(--primary);
+  box-shadow:0 2px 24px rgba(61,82,160,0.13);
 }
-
-/* ── PROGRESS BARS ── */
-.prog-wrap{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
-.prog-track{flex:1;height:8px;background:#e8f0fe;border-radius:99px;overflow:hidden;}
-.prog-fill{height:8px;border-radius:99px;transition:width .8s cubic-bezier(.22,1,.36,1);}
-
-/* ── SECTION HEADERS ── */
-.sec-hdr{
-  font-family:'Syne',sans-serif;font-size:20px;font-weight:900;
-  color:#0f172a;letter-spacing:-.5px;margin-bottom:16px;
-  display:flex;align-items:center;gap:10px;
+.pf-brand{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--primary);letter-spacing:-1px;}
+.pf-brand span{color:var(--secondary);}
+.hero-wrap{width:100%;height:80vh;overflow:hidden;position:relative;}
+.hero-img{width:100%;height:100%;
+  background:url('https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=80&w=2000') no-repeat center;
+  background-size:cover;transition:transform 3s ease;}
+.hero-wrap:hover .hero-img{transform:scale(1.07);}
+.hero-overlay{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  background:linear-gradient(135deg,rgba(13,17,23,.72),rgba(61,82,160,.55));
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  color:white;text-align:center;padding:0 20px;
 }
-.sec-hdr::after{
-  content:'';flex:1;height:1.5px;
-  background:linear-gradient(90deg,#bfdbfe,transparent);
-  border-radius:99px;
+.hero-title{
+  font-family:'Syne',sans-serif;font-size:82px;font-weight:900;
+  letter-spacing:-4px;margin:0;color:white;
+  text-shadow:0 4px 30px rgba(0,0,0,.4);
+  animation:heroIn .8s ease forwards;
+  cursor:default;
+  transition: all 0.3s ease;
 }
-
-/* ── TOOLTIP BADGE ── */
-.tip-badge{
-  display:inline-flex;align-items:center;gap:5px;
-  background:linear-gradient(135deg,#eff6ff,#dbeafe);
-  border:1.5px solid #bfdbfe;border-radius:99px;
-  padding:4px 12px;font-size:10.5px;font-weight:800;
-  color:#1d4ed8;letter-spacing:.5px;
+/* --- HERO TITLE HOVER (COLOR & NEON) --- */
+.hero-title:hover {
+  color: var(--accent);
+  text-shadow: 0 0 10px #fff, 0 0 20px var(--secondary), 0 0 40px var(--primary);
+  transform: scale(1.02);
 }
-
-/* ── FLOATING CHATBOT (injected into body) ── */
-#pf-fab{position:fixed!important;bottom:28px!important;right:28px!important;z-index:2147483647!important;width:62px;height:62px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#3b82f6);display:flex!important;align-items:center;justify-content:center;cursor:pointer;font-size:26px;border:3px solid rgba(255,255,255,.3);transition:transform .22s;user-select:none;animation:pulseRing 2.6s infinite;}
-#pf-fab:hover{transform:scale(1.13)!important;animation:none!important;}
-#pf-dot{position:absolute;top:-2px;right:-2px;width:15px;height:15px;background:#22c55e;border-radius:50%;border:2.5px solid white;}
-#pf-lbl{position:fixed!important;bottom:38px!important;right:104px!important;z-index:2147483646!important;background:#0f172a;color:white;font-size:11.5px;font-weight:700;padding:7px 13px;border-radius:9px;white-space:nowrap;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.35);font-family:'Plus Jakarta Sans',sans-serif;}
-#pf-lbl::after{content:"";position:absolute;right:-5px;top:50%;transform:translateY(-50%);width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:6px solid #0f172a;}
-#pf-fab:hover+#pf-lbl{opacity:1!important;}
-#pf-win{position:fixed!important;bottom:106px!important;right:28px!important;z-index:2147483645!important;width:358px;background:white;border-radius:22px;box-shadow:0 20px 64px rgba(29,78,216,.22);border:1.5px solid #bfdbfe;flex-direction:column;overflow:hidden;display:none;}
-#pf-win.pf-open{display:flex!important;animation:chatSlide .3s cubic-bezier(.34,1.56,.64,1);}
-#pf-hdr{background:linear-gradient(135deg,#06091f,#1a3370,#1d4ed8);padding:13px 15px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
-#pf-msgs{padding:12px;min-height:180px;max-height:270px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;background:#f8faff;flex:1;}
-#pf-msgs::-webkit-scrollbar{width:4px;}
-#pf-msgs::-webkit-scrollbar-thumb{background:#bfdbfe;border-radius:99px;}
-#pf-qs{padding:7px 10px;background:white;border-top:1px solid #e8f0fe;display:flex;flex-wrap:wrap;gap:5px;flex-shrink:0;}
-.pq{background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:99px;padding:4px 11px;font-size:10.5px;font-weight:700;color:#1d4ed8;cursor:pointer;transition:all .18s;font-family:'Plus Jakarta Sans',sans-serif;}
-.pq:hover{background:#1d4ed8;color:white;border-color:#1d4ed8;transform:translateY(-2px);}
-#pf-inp-row{padding:9px 10px;border-top:1.5px solid #e0efff;display:flex;gap:7px;background:white;flex-shrink:0;}
-#pf-inp{flex:1;border:1.5px solid #bfdbfe;border-radius:9px;padding:8px 11px;font-size:12.5px;font-family:'Plus Jakarta Sans',sans-serif;outline:none;transition:border-color .2s;background:#f8faff;}
-#pf-inp:focus{border-color:#1d4ed8;background:white;box-shadow:0 0 0 3px rgba(29,78,216,.1);}
-#pf-snd{background:linear-gradient(135deg,#1d4ed8,#2563eb);color:white;border:none;border-radius:9px;padding:8px 16px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all .2s;white-space:nowrap;}
-#pf-snd:hover{background:#0f172a;transform:translateY(-1px);}
-</style>""")
-
-# ══════════════════════════════════════════════════════
-# FLOATING CHATBOT — injected directly into <body>
-# Works on ALL pages (landing + dashboard)
-# ══════════════════════════════════════════════════════
-_gk = (GROQ_KEY or "").replace("'","").replace('"','')
-h(f"""<div id="pf-fab"><div id="pf-dot"></div></div>
-<div id="pf-lbl">Ask AI Career Advisor ✨</div>
-<div id="pf-win">
-  <div id="pf-hdr">
-    <div style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:20px;border:2px solid rgba(255,255,255,.2);">🧭</div>
-    <div style="flex:1;margin-left:2px;">
-      <div style="font-weight:800;font-size:14px;color:white;font-family:'Plus Jakarta Sans',sans-serif;">PathFinder AI</div>
-      <div style="font-size:10.5px;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:5px;margin-top:2px;font-family:'Plus Jakarta Sans',sans-serif;">
-        <span style="width:6px;height:6px;background:#22c55e;border-radius:50%;display:inline-block;animation:blink 1.5s infinite;"></span>Online · Career Guidance Only
-      </div>
-    </div>
-    <span id="pf-close" style="cursor:pointer;color:rgba(255,255,255,.6);font-size:20px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;transition:background .15s;line-height:1;" onmouseover="this.style.background='rgba(255,255,255,.13)'" onmouseout="this.style.background='transparent'">&#x2715;</span>
-  </div>
-  <div id="pf-msgs">
-    <div class="pmsg-ai">&#x1F44B; Hi! I'm PathFinder AI.<br>Ask me about careers, salaries, skills, or jobs! &#x1F680;</div>
-  </div>
-  <div id="pf-qs">
-    <span class="pq" onclick="pfQ('Best tech career 2025?')">Best tech career?</span>
-    <span class="pq" onclick="pfQ('High salary jobs?')">High salary?</span>
-    <span class="pq" onclick="pfQ('Remote careers?')">Remote careers?</span>
-    <span class="pq" onclick="pfQ('AI/ML skills to learn?')">AI/ML skills?</span>
-    <span class="pq" onclick="pfQ('Best careers in Pakistan?')">Pakistan careers?</span>
-    <span class="pq" onclick="pfQ('Freelancing guide for beginners?')">Freelancing?</span>
-  </div>
-  <div id="pf-inp-row">
-    <input id="pf-inp" placeholder="Ask about careers, salaries, skills..." onkeydown="if(event.key==='Enter')pfSend()">
-    <button id="pf-snd" onclick="pfSend()">Send ›</button>
-  </div>
-</div>
-<script>
-(function(){{
-  var gk='{_gk}';
-  var TIPS=['AI/ML Engineer — fastest growing, $135K+','UX Designer — creative + remote-friendly','Cloud Architect — $145K avg, 9/10 remote','Pakistan IT exports = earn USD remotely','Data Science: Python + SQL = career gold','Cybersecurity — massive demand, great WLB','Freelancing: start niche on Upwork/Fiverr','Remote careers open global opportunities'];
-  var fab=document.getElementById('pf-fab');
-  var win=document.getElementById('pf-win');
-  var close=document.getElementById('pf-close');
-  var isOpen=false;
-
-  // Make fab emoji visible
-  fab.innerHTML='&#x1F916;<div id="pf-dot"></div>';
-
-  function pfOpen(){{
-    isOpen=true;
-    win.classList.add('pf-open');
-    fab.innerHTML='<span style="font-size:22px;color:white;font-weight:200;line-height:1;">&#x2715;</span><div id="pf-dot" style="position:absolute;top:-2px;right:-2px;width:15px;height:15px;background:#22c55e;border-radius:50%;border:2.5px solid white;"></div>';
-    fab.style.animation='none';
-    fab.style.background='linear-gradient(135deg,#0f172a,#1e3a8a)';
-    var m=document.getElementById('pf-msgs'); if(m) m.scrollTop=9999;
-  }}
-  function pfClose(){{
-    isOpen=false;
-    win.classList.remove('pf-open');
-    fab.innerHTML='&#x1F916;<div id="pf-dot" style="position:absolute;top:-2px;right:-2px;width:15px;height:15px;background:#22c55e;border-radius:50%;border:2.5px solid white;"></div>';
-    fab.style.animation='pulseRing 2.6s infinite';
-    fab.style.background='linear-gradient(135deg,#1d4ed8,#3b82f6)';
-  }}
-  fab.addEventListener('click',function(){{ isOpen ? pfClose() : pfOpen(); }});
-  if(close) close.addEventListener('click',pfClose);
-
-  // Auto open once after delay
-  setTimeout(function(){{ if(!isOpen) pfOpen(); }}, 4000);
-
-  function pfAddMsg(txt,isUser){{
-    var m=document.getElementById('pf-msgs');
-    if(!m) return;
-    var d=document.createElement('div');
-    d.className=isUser?'pmsg-user':'pmsg-ai';
-    d.style.cssText=isUser?'align-self:flex-end;':'';
-    d.textContent=txt;
-    m.appendChild(d); m.scrollTop=9999;
-  }}
-  function pfTyping(){{
-    var m=document.getElementById('pf-msgs'); if(!m) return;
-    var d=document.createElement('div'); d.id='pf-typing'; d.className='pmsg-ai';
-    d.innerHTML='<span style="display:flex;gap:5px;align-items:center;"><span style="width:7px;height:7px;background:#94a3b8;border-radius:50%;animation:dot1 1.2s infinite;display:inline-block;"></span><span style="width:7px;height:7px;background:#94a3b8;border-radius:50%;animation:dot2 1.2s infinite;display:inline-block;"></span><span style="width:7px;height:7px;background:#94a3b8;border-radius:50%;animation:dot3 1.2s infinite;display:inline-block;"></span></span>';
-    m.appendChild(d); m.scrollTop=9999;
-  }}
-  function pfRmTyping(){{ var t=document.getElementById('pf-typing'); if(t)t.remove(); }}
-  function pfSend(){{
-    var inp=document.getElementById('pf-inp'); if(!inp) return;
-    var q=inp.value.trim(); if(!q) return;
-    inp.value=''; pfAddMsg(q,true); pfTyping();
-    if(gk){{
-      fetch('https://api.groq.com/openai/v1/chat/completions',{{
-        method:'POST',
-        headers:{{'Authorization':'Bearer '+gk,'Content-Type':'application/json'}},
-        body:JSON.stringify({{
-          model:'llama3-70b-8192',max_tokens:280,
-          messages:[
-            {{role:'system',content:'You are PathFinder AI — STRICT career guidance only. Only answer about careers, jobs, salaries, skills, education, freelancing, universities, professional development. For anything else reply: "I only help with career guidance. Ask a career question!" Keep answers concise (2-3 sentences max), practical, and actionable.'}},
-            {{role:'user',content:q}}
-          ]
-        }})
-      }}).then(r=>r.json()).then(d=>{{
-        pfRmTyping();
-        var txt=d.choices&&d.choices[0]?d.choices[0].message.content:'Career tip: '+TIPS[Math.floor(Math.random()*TIPS.length)];
-        pfAddMsg(txt,false);
-      }}).catch(()=>{{
-        pfRmTyping();
-        pfAddMsg('💡 '+TIPS[Math.floor(Math.random()*TIPS.length)],false);
-      }});
-    }}else{{
-      setTimeout(function(){{
-        pfRmTyping();
-        pfAddMsg('💡 '+TIPS[Math.floor(Math.random()*TIPS.length)]+'\n\n(Set GROQ_API_KEY in .env for live AI)',false);
-      }},800);
-    }}
-  }}
-  function pfQ(q){{ document.getElementById('pf-inp').value=q; pfSend(); }}
-  window.pfQ=pfQ;
-  window.pfSend=pfSend;
-}})();
-</script>""")
-
-# ══════════════════════════════════════════════════════
-# PUBLIC NAV
-# ══════════════════════════════════════════════════════
-def pub_nav(page_key=""):
-    h(f"""<div style="position:sticky;top:0;z-index:8000;background:rgba(255,255,255,.97);
-  backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
-  height:64px;display:flex;align-items:center;justify-content:space-between;
-  padding:0 3.5%;border-bottom:1.5px solid rgba(29,78,216,.11);
-  box-shadow:0 2px 22px rgba(29,78,216,.07);font-family:'Plus Jakarta Sans',sans-serif;">
-  <div style="display:flex;align-items:center;gap:9px;flex-shrink:0;cursor:pointer;"
-    onclick="window.scrollTo({{top:0,behavior:'smooth'}})">
-    <div style="width:36px;height:36px;background:linear-gradient(135deg,#1d4ed8,#60a5fa);
-      border-radius:10px;display:flex;align-items:center;justify-content:center;
-      font-size:18px;box-shadow:0 4px 14px rgba(29,78,216,.4);
-      transition:transform .2s,box-shadow .2s;"
-      onmouseover="this.style.transform='rotate(-8deg) scale(1.12)'"
-      onmouseout="this.style.transform='rotate(0) scale(1)'">🧭</div>
-    <span style="font-size:20px;font-weight:900;color:#0f172a;letter-spacing:-.5px;">
-      PathFinder<span style="color:#1d4ed8;">.AI</span></span>
-  </div>
-  <div style="display:flex;align-items:center;gap:3px;">
-    <a style="padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;color:#64748b;cursor:pointer;transition:all .2s;text-decoration:none;"
-      onmouseover="this.style.color='#1d4ed8';this.style.background='rgba(29,78,216,.07)';this.style.transform='translateY(-1px)'"
-      onmouseout="this.style.color='#64748b';this.style.background='transparent';this.style.transform='translateY(0)'"
-      onclick="window.scrollTo({{top:0,behavior:'smooth'}})">🏠 Home</a>
-    <a style="padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;color:#64748b;cursor:pointer;transition:all .2s;text-decoration:none;"
-      onmouseover="this.style.color='#1d4ed8';this.style.background='rgba(29,78,216,.07)';this.style.transform='translateY(-1px)'"
-      onmouseout="this.style.color='#64748b';this.style.background='transparent';this.style.transform='translateY(0)'"
-      onclick="var el=document.getElementById('feat-sec');if(el)el.scrollIntoView({{behavior:'smooth'}})">✨ Features</a>
-    <a style="padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;color:#64748b;cursor:pointer;transition:all .2s;text-decoration:none;"
-      onmouseover="this.style.color='#1d4ed8';this.style.background='rgba(29,78,216,.07)';this.style.transform='translateY(-1px)'"
-      onmouseout="this.style.color='#64748b';this.style.background='transparent';this.style.transform='translateY(0)'"
-      onclick="var el=document.getElementById('about-sec');if(el)el.scrollIntoView({{behavior:'smooth'}})">🔵 About</a>
-  </div>
-  <div style="min-width:210px;display:flex;justify-content:flex-end;gap:8px;align-items:center;" id="nav-rp"></div>
-</div>""")
-    h("""<style>
-div[data-testid="stHorizontalBlock"].pf-nav-row{
-  margin-top:-50px!important;position:relative;z-index:8500;
-  display:flex!important;justify-content:flex-end!important;
-  padding-right:3.5%!important;padding-top:0!important;gap:8px!important;
+@keyframes heroIn{from{opacity:0;transform:translateY(40px);}to{opacity:1;transform:translateY(0);}}
+.glass-card{
+  background:rgba(255,255,255,.8);backdrop-filter:blur(12px);
+  padding:36px;border-radius:28px;
+  border:2px solid rgba(61,82,160,.1);
+  transition:all .4s ease;text-align:left;margin-bottom:24px;
+  min-height:260px;display:flex;flex-direction:column;justify-content:center;
 }
-div[data-testid="stHorizontalBlock"].pf-nav-row>div{flex:0 0 auto!important;width:auto!important;min-width:0!important;padding:0!important;}
-div[data-testid="stHorizontalBlock"].pf-nav-row button{height:36px!important;min-width:90px!important;padding:0 16px!important;font-size:12.5px!important;white-space:nowrap!important;}
-</style>""")
-    _sp,_li,_jo=st.columns([5,.9,1.1])
-    with _li:
-        if st.button("🔐 Log In",key=f"nav_li_{page_key}",use_container_width=True):
-            st.session_state.page="login"; st.rerun()
-    with _jo:
-        if st.button("🚀 Get Started",key=f"nav_jo_{page_key}",use_container_width=True):
-            st.session_state.page="signup"; st.rerun()
-    h("""<script>
-(function(){
-  var blocks=document.querySelectorAll('[data-testid="stHorizontalBlock"]');
-  if(blocks.length>0){blocks[blocks.length-1].classList.add('pf-nav-row');}
-  setTimeout(function(){
-    var b=document.querySelectorAll('[data-testid="stHorizontalBlock"]');
-    if(b.length>0){b[b.length-1].classList.add('pf-nav-row');}
-  },300);
-})();
-</script>
-<div style="height:8px;"></div>""")
+.glass-card:hover{
+  background:var(--primary);transform:translateY(-12px) scale(1.02);
+  box-shadow:0 32px 64px rgba(61,82,160,.35);border-color:var(--secondary);
+}
+.glass-card h3{color:var(--primary);font-weight:800;font-size:22px;margin-bottom:14px;transition:.3s;}
+.glass-card p{color:#2D3748;font-size:14px;line-height:1.75;transition:.3s;}
+.glass-card:hover h3,.glass-card:hover p{color:white!important;}
+.pf-card{
+  background:white;border-radius:20px;padding:28px;
+  border:2px solid rgba(61,82,160,.08);
+  box-shadow:0 4px 24px rgba(61,82,160,.08);
+  margin-bottom:20px;transition:border-color .2s;
+}
+.pf-card:hover{border-color:var(--secondary);}
+.pf-card-title{
+  font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;
+  color:var(--primary);margin-bottom:16px;display:flex;align-items:center;gap:8px;
+}
+.match-card{
+  background:white;border:2px solid rgba(61,82,160,.1);
+  border-radius:18px;padding:22px;margin-bottom:14px;
+  position:relative;overflow:hidden;
+  transition:all .3s;box-shadow:0 2px 16px rgba(61,82,160,.07);
+}
+.match-card:hover{box-shadow:0 8px 32px rgba(61,82,160,.18);transform:translateY(-3px);}
+.match-card.top{border-color:var(--primary);}
+.match-rank{
+  font-family:'Syne',sans-serif;font-size:2.4rem;font-weight:900;
+  color:var(--primary);opacity:.18;position:absolute;top:10px;right:18px;
+}
+.match-title{font-family:'Syne',sans-serif;font-size:1.25rem;font-weight:800;margin:0 0 6px;color:var(--text);}
+.score-bar-bg{background:#e8eaf6;border-radius:999px;height:6px;margin:6px 0;}
+.score-bar-fill{height:6px;border-radius:999px;background:linear-gradient(90deg,var(--primary),var(--secondary));transition:width .8s;}
+.badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.72rem;font-weight:700;margin:2px;}
+.badge-blue{background:rgba(61,82,160,.12);color:var(--primary);border:1px solid rgba(61,82,160,.2);}
+.badge-purple{background:rgba(112,145,230,.15);color:#5865a0;border:1px solid rgba(112,145,230,.3);}
+.badge-green{background:rgba(34,197,94,.12);color:#16a34a;border:1px solid rgba(34,197,94,.25);}
+.badge-yellow{background:rgba(245,158,11,.12);color:#b45309;border:1px solid rgba(245,158,11,.25);}
+.badge-red{background:rgba(239,68,68,.12);color:#dc2626;border:1px solid rgba(239,68,68,.25);}
+.badge-teal{background:rgba(20,184,166,.12);color:#0d9488;border:1px solid rgba(20,184,166,.25);}
+.auth-wrap{
+  background:white;border-radius:28px;padding:48px 52px;
+  margin:30px auto;max-width:480px;
+  box-shadow:0 8px 48px rgba(61,82,160,.13);
+  border:2px solid rgba(61,82,160,.08);
+  animation:fadeUp .5s ease;
+}
+.dash-wrap{
+  background:white;border-radius:28px;padding:48px 52px;
+  margin:30px auto;max-width:780px;
+  box-shadow:0 8px 48px rgba(61,82,160,.13);
+  border:2px solid rgba(61,82,160,.08);
+  animation:fadeUp .5s ease;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(28px);}to{opacity:1;transform:translateY(0);}}
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
+.dash-field{background:#f3f5fc;border-radius:14px;padding:16px 20px;}
+.dash-field .label{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;}
+.dash-field .value{font-size:15px;font-weight:700;color:var(--text);}
+.stButton>button{
+  background:linear-gradient(90deg,var(--primary),var(--secondary))!important;
+  color:white!important;border:none!important;border-radius:14px!important;
+  padding:11px 28px!important;font-family:'Plus Jakarta Sans',sans-serif!important;
+  font-weight:700!important;font-size:.92rem!important;transition:all .25s!important;
+}
+.stButton>button:hover{transform:translateY(-3px)!important;box-shadow:0 10px 24px rgba(61,82,160,.3)!important;}
+.stTextInput label,.stTextArea label,.stSelectbox label,.stMultiSelect label{
+  color:var(--primary)!important;font-size:13px!important;font-weight:700!important;
+}
+.stTextInput input,.stTextArea textarea{
+  background:#f7f8fc!important;border:1.5px solid var(--border)!important;
+  border-radius:12px!important;color:var(--text)!important;
+}
+.stTextInput input:focus,.stTextArea textarea:focus{
+  border-color:var(--secondary)!important;
+  box-shadow:0 0 0 3px rgba(112,145,230,.18)!important;
+}
+.stSelectbox>div>div,.stMultiSelect>div>div{
+  background:#f7f8fc!important;border:1.5px solid var(--border)!important;
+  border-radius:12px!important;color:var(--text)!important;
+}
+.stTabs [data-baseweb="tab"]{
+  color:var(--muted)!important;background:transparent!important;
+  border-bottom:2px solid transparent!important;
+  font-family:'Plus Jakarta Sans',sans-serif!important;font-weight:700!important;
+}
+.stTabs [aria-selected="true"]{color:var(--primary)!important;border-bottom:2px solid var(--primary)!important;}
+.stTabs [data-baseweb="tab-list"]{background:transparent!important;border-bottom:1px solid var(--border)!important;}
+[data-testid="stMetricValue"]{color:var(--primary)!important;font-family:'Syne',sans-serif!important;font-weight:800!important;}
+[data-testid="stMetricLabel"]{color:var(--muted)!important;font-weight:600!important;}
+.chat-user{
+  background:linear-gradient(90deg,rgba(61,82,160,.12),rgba(112,145,230,.1));
+  border:1px solid rgba(61,82,160,.2);
+  border-radius:18px 18px 2px 18px;padding:12px 18px;margin:8px 0;
+  max-width:78%;margin-left:auto;color:var(--text);
+}
+.chat-ai{
+  background:white;border:1px solid var(--border);
+  border-radius:18px 18px 18px 2px;padding:12px 18px;margin:8px 0;
+  max-width:85%;color:var(--text);
+  box-shadow:0 2px 12px rgba(61,82,160,.06);
+}
+.pf-footer{
+  background:#0d1117;color:#ADBBDA;
+  padding:70px 8% 40px;margin-top:80px;
+  border-top:4px solid var(--primary);
+}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr;gap:60px;}
+.footer-bottom{margin-top:50px;padding-top:22px;border-top:1px solid rgba(255,255,255,.07);text-align:center;color:#555;font-size:13px;}
+.team-name{color:white;font-weight:700;font-size:15px;margin-bottom:4px;transition: all 0.3s ease;}
+.team-link a{color:#7091E6;text-decoration:none;font-size:13px;transition: all 0.3s ease;}
+/* --- FOOTER HOVER (NEON SHADOW) --- */
+.team-name:hover,
+.team-link a:hover{
+  color: white;
+  text-shadow: 0 0 5px #fff, 0 0 10px var(--primary), 0 0 20px var(--secondary);
+  transform: translateX(5px);
+}
+.doodle{position:fixed;opacity:.11;z-index:0;width:78px;pointer-events:auto;transition: all 0.4s ease;}
+/* --- DOODLE HOVER (SCALE & GLOW) --- */
+.doodle:hover{
+  opacity: 1 !important;
+  transform: scale(1.2) rotate(10deg);
+  filter: drop-shadow(0 0 15px var(--primary));
+  z-index: 10;
+}
+.section-title{font-family:'Syne',sans-serif;font-size:40px;font-weight:900;color:var(--primary);margin-bottom:50px;text-align:center;}
+hr{border-color:var(--border)!important;}
+h1,h2,h3{font-family:'Syne',sans-serif!important;color:var(--primary)!important;}
+.inst-card{border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;
+  background:white;box-shadow:0 4px 16px rgba(61,82,160,.07);
+  transition:all .3s;margin-bottom:20px;}
+.inst-card:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(61,82,160,.15);}
+.journey-container{display:flex;justify-content:space-between;align-items:center;margin:30px 0 40px 0;position:relative;}
+.journey-line{position:absolute;top:25px;left:0;width:100%;height:4px;background:#e2e8f0;z-index:0;}
+.journey-step{position:relative;z-index:1;text-align:center;width:30%;}
+.step-circle{width:50px;height:50px;border-radius:50%;background:white;border:3px solid #cbd5e1;
+  display:flex;align-items:center;justify-content:center;font-size:1.5rem;
+  margin:0 auto 10px auto;transition:all 0.3s;}
+.step-active .step-circle{border-color:var(--primary);background:var(--primary);color:white;
+  box-shadow:0 0 0 4px rgba(61,82,160,0.2);transform:scale(1.1);}
+.step-done .step-circle{background:#22c55e;border-color:#22c55e;color:white;}
+.step-title{font-weight:bold;color:#1e293b;font-size:0.95rem;}
+.step-sub{color:#64748b;font-size:0.8rem;}
+</style>
+<img src="https://img.icons8.com/ios-filled/100/3D52A0/laptop-coding.png"  class="doodle" style="top:22%;left:2%;">
+<img src="https://img.icons8.com/ios-filled/100/3D52A0/brainstorming.png" class="doodle" style="top:58%;right:2%;">
+<img src="https://img.icons8.com/ios-filled/100/3D52A0/books.png"          class="doodle" style="bottom:18%;left:3%;">
+<img src="https://img.icons8.com/ios-filled/100/3D52A0/goal.png"           class="doodle" style="top:14%;right:4%;">
+""", unsafe_allow_html=True)
+# ═══════════════════════════════════════════════════════════════════
+# CONSTANTS & PATHS
+# ═══════════════════════════════════════════════════════════════════
+DATASET_PATH   = "career_guidance_dataset.csv"
+INST_PATH      = "institutes_dataset.csv"
+FEATURE_COLS   = ["work_life_balance","creativity_level","social_interaction",
+                  "remote_possibility","burnout_risk","automation_risk","growth_rate"]
+MODEL_PATH     = "pf_rf_model.pkl"
+SCALER_PATH    = "pf_scaler.pkl"
+PF_COLORS      = ["#3D52A0","#7091E6","#ADBBDA","#22c55e","#f59e0b","#ef4444","#8b5cf6","#06b6d4"]
 
-# ══════════════════════════════════════════════════════
-# LANDING PAGE
-# ══════════════════════════════════════════════════════
-if pg == "landing":
-    gk_safe = GROQ_KEY.replace("'","").replace('"','') if GROQ_KEY else ""
+# ═══════════════════════════════════════════════════════════════════
+# GROQ CLIENT
+# ═══════════════════════════════════════════════════════════════════
+@st.cache_resource
+def get_groq():
+    k = os.getenv("GROQ_API_KEY","")
+    if not k: return None
+    return Groq(api_key=k)
 
-    # ── HIDDEN STREAMLIT BUTTONS (for JS to trigger page nav) ──
-    _, b1, b2, b3, b4 = st.columns([3, 1, 1, 1, 1])
-    with b1: home_trig = st.button("Home", key="trig_home")
-    with b2: login_trig = st.button("Login", key="trig_login")
-    with b3: signup_trig = st.button("Signup", key="trig_signup")
-    with b4: about_trig = st.button("About", key="trig_about")
+def groq_complete(messages, system="", max_tokens=2048):
+    client = get_groq()
+    if not client: return "⚠️ GROQ_API_KEY not set in .env"
+    msgs = ([{"role":"system","content":system}] if system else []) + messages
+    try:
+        r = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=msgs, max_tokens=max_tokens
+        )
+        return r.choices[0].message.content
+    except Exception as e: return f"⚠️ {e}"
 
-    if home_trig: st.session_state.page = "landing"; st.rerun()
-    if login_trig: st.session_state.page = "login"; st.rerun()
-    if signup_trig: st.session_state.page = "signup"; st.rerun()
-
-    # ── EMBEDDED CHATBOT via components.html (restricted to website help) ──
-    components.html(f"""<!DOCTYPE html><html><head>
-    <meta charset="UTF-8">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <style>
-    *{{box-sizing:border-box;margin:0;padding:0;}} body{{background:transparent;overflow:hidden;font-family:'Plus Jakarta Sans',sans-serif;}}
-    @keyframes fabPulse{{0%,100%{{box-shadow:0 0 0 0 rgba(29,78,216,.5),0 8px 32px rgba(29,78,216,.55);}}70%{{box-shadow:0 0 0 14px rgba(29,78,216,0),0 8px 32px rgba(29,78,216,.55);}}}}
-    @keyframes chatSlide{{from{{opacity:0;transform:translateY(22px) scale(.95);}}to{{opacity:1;transform:translateY(0) scale(1);}}}}
-    #pf-fab{{position:fixed;bottom:26px;right:26px;z-index:99999;width:66px;height:66px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#3b82f6);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:29px;border:3px solid rgba(255,255,255,.3);transition:transform .2s;user-select:none;}}
-    .fab-pulse{{animation:fabPulse 2.2s infinite;}} #pf-fab:hover{{transform:scale(1.15)!important;box-shadow:0 10px 40px rgba(29,78,216,.8)!important;}}
-    #pf-dot{{position:absolute;top:-1px;right:-1px;width:15px;height:15px;background:#22c55e;border-radius:50%;border:2.5px solid white;}}
-    #pf-win{{position:fixed;bottom:108px;right:26px;z-index:99998;width:354px;background:white;border-radius:22px;box-shadow:0 20px 60px rgba(29,78,216,.22);border:1.5px solid #bfdbfe;flex-direction:column;overflow:hidden;display:none;}}
-    #pf-win.open{{display:flex;animation:chatSlide .3s cubic-bezier(.34,1.56,.64,1);}}
-    #pf-hdr{{background:linear-gradient(135deg,#060c1f,#1e3a8a,#1d4ed8);padding:14px 16px;display:flex;align-items:center;gap:11px;flex-shrink:0;}}
-    #pf-msgs{{padding:13px;min-height:185px;max-height:272px;overflow-y:auto;display:flex;flex-direction:column;gap:9px;background:#f8faff;flex:1;}}
-    .pmsg-ai{{background:white;border:1.5px solid #e0efff;border-radius:14px 14px 14px 3px;padding:10px 13px;font-size:12.5px;color:#0f172a;max-width:90%;line-height:1.7;}}
-    .pmsg-user{{background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:14px 14px 3px 14px;padding:10px 13px;color:white;max-width:90%;align-self:flex-end;margin-left:auto;font-size:12.5px;}}
-    #pf-qs{{padding:8px 10px;background:white;border-top:1px solid #e8f0fe;display:flex;flex-wrap:wrap;gap:5px;flex-shrink:0;}}
-    .pq{{background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:99px;padding:4px 11px;font-size:10.5px;font-weight:700;color:#1d4ed8;cursor:pointer;transition:all .18s;font-family:'Plus Jakarta Sans',sans-serif;}}
-    .pq:hover{{background:#1d4ed8;color:white;border-color:#1d4ed8;}}
-    #pf-inp-row{{padding:10px 11px;border-top:1.5px solid #e0efff;display:flex;gap:7px;background:white;flex-shrink:0;}}
-    #pf-inp{{flex:1;border:1.5px solid #bfdbfe;border-radius:9px;padding:8px 12px;font-size:12.5px;background:#f8faff;font-family:'Plus Jakarta Sans',sans-serif;outline:none;}}
-    #pf-inp:focus{{border-color:#1d4ed8;background:white;}}
-    #pf-snd{{background:linear-gradient(135deg,#1d4ed8,#2563eb);color:white;border:none;border-radius:9px;padding:8px 16px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;white-space:nowrap;}}
-    #pf-snd:hover{{background:#0f172a;}}
-    </style></head><body>
-    <div id="pf-fab" class="fab-pulse" onclick="pfToggle()">🤖<div id="pf-dot"></div></div>
-    <div id="pf-win">
-      <div id="pf-hdr">
-        <div style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:20px;border:2px solid rgba(255,255,255,.2);">🧭</div>
-        <div style="flex:1;"><div style="font-weight:800;font-size:14px;color:white;">PathFinder AI</div><div style="font-size:10.5px;color:rgba(255,255,255,.55);">Website Support · Restricted Mode</div></div>
-        <span onclick="pfToggle()" style="cursor:pointer;color:rgba(255,255,255,.6);font-size:18px;padding:4px;">✕</span>
-      </div>
-      <div id="pf-msgs">
-        <div class="pmsg-ai">👋 Hi! I'm PathFinder AI assistant.<br><br>I can help you understand this website — features like <strong>Career Matching</strong>, <strong>Resume Scoring</strong>, <strong>Roadmaps</strong>, and how to navigate. Ask away!</div>
-      </div>
-      <div id="pf-qs">
-        <span class="pq" onclick="pfQ('What can PathFinder AI do?')">What can this do?</span>
-        <span class="pq" onclick="pfQ('How do I get started?')">How to start?</span>
-        <span class="pq" onclick="pfQ('What is Career Matching?')">Career Match?</span>
-        <span class="pq" onclick="pfQ('How does Resume Scorer work?')">Resume Scorer?</span>
-        <span class="pq" onclick="pfQ('Is PathFinder AI free?')">Is it free?</span>
-      </div>
-      <div id="pf-inp-row">
-        <input id="pf-inp" placeholder="Ask about the website..." onkeydown="if(event.key==='Enter')pfSend()">
-        <button id="pf-snd" onclick="pfSend()">Send ›</button>
-      </div>
-    </div>
-    <script>
-    var GROQ_KEY="{gk_safe}";
-    var fabOpen=false; var autoOpened=false;
-    function pfToggle(){{
-      fabOpen=!fabOpen;
-      var w=document.getElementById('pf-win'); var f=document.getElementById('pf-fab');
-      if(fabOpen){{w.classList.add('open');f.classList.remove('fab-pulse');f.innerHTML='<span style="font-size:20px;font-weight:300;color:white;">✕</span>';}}
-      else{{w.classList.remove('open');f.classList.add('fab-pulse');f.innerHTML='🤖<div id="pf-dot"></div>';}}
-    }}
-    setTimeout(function(){{if(!autoOpened){{autoOpened=true;pfToggle();}}}},4200);
-    function pfQ(q){{document.getElementById('pf-inp').value=q;pfSend();}}
-    function pfAddMsg(txt,isUser){{
-      var msgs=document.getElementById('pf-msgs');
-      var d=document.createElement('div'); d.className=isUser?'pmsg-user':'pmsg-ai';
-      d.innerHTML=txt; msgs.appendChild(d); msgs.scrollTop=9999;
-    }}
-    var TIPS=["PathFinder AI matches you with 30+ careers based on your personality and preferences!","Use the Resume Scorer to upload your CV and get AI-powered feedback.","The Roadmap feature creates step-by-step career plans tailored to your age.","Career Matches uses ML scoring to rank careers by compatibility.","Sign up free — no credit card required, all features included!"];
-    function pfSend(){{
-      var inp=document.getElementById('pf-inp'); var q=inp.value.trim(); if(!q)return; inp.value=''; pfAddMsg(q,true);
-      var sys='You are a helpful assistant for PathFinder AI, a career guidance website. You ONLY answer questions about this website and its features (Career Matching, Roadmaps, Resume Scorer, Market Insights, Institute Finder, AI Advisor). If asked about specific careers or general career advice, say: "For career advice, please sign up and use our Career Matches or AI Advisor features!" Keep answers short, friendly, and 1-3 sentences.';
-      if(GROQ_KEY){{
-        fetch('https://api.groq.com/openai/v1/chat/completions',{{method:'POST',
-          headers:{{'Authorization':'Bearer '+GROQ_KEY,'Content-Type':'application/json'}},
-          body:JSON.stringify({{model:'llama3-70b-8192',max_tokens:200,messages:[{{role:'system',content:sys}},{{role:'user',content:q}}]}})
-        }}).then(r=>r.json()).then(d=>{{pfAddMsg(d.choices&&d.choices[0]?d.choices[0].message.content:'Please sign up to access full AI features!',false);}}).catch(()=>{{pfAddMsg(TIPS[Math.floor(Math.random()*TIPS.length)],false);}});
-      }} else {{
-        pfAddMsg(TIPS[Math.floor(Math.random()*TIPS.length)],false);
-      }}
-    }}
-    </script></body></html>""", height=0, scrolling=False)
-
-    # ── HORIZONTAL NAVBAR ──
-    h("""<style>
-    .main-nav{
-      position:sticky;top:0;width:100%;height:68px;
-      background:rgba(255,255,255,.97);backdrop-filter:blur(20px);
-      display:flex;align-items:center;justify-content:space-between;
-      padding:0 4%;border-bottom:1.5px solid #e0efff;z-index:5000;
-      box-shadow:0 2px 18px rgba(29,78,216,.07);
-      font-family:'Plus Jakarta Sans',sans-serif;
-    }
-    .nav-logo{display:flex;align-items:center;gap:9px;cursor:pointer;text-decoration:none;}
-    .nav-logo-icon{width:36px;height:36px;background:linear-gradient(135deg,#1d4ed8,#60a5fa);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 4px 14px rgba(29,78,216,.35);transition:transform .2s,box-shadow .2s;}
-    .nav-logo-icon:hover{transform:rotate(-8deg) scale(1.1);box-shadow:0 8px 24px rgba(29,78,216,.5);}
-    .nav-logo-text{font-size:20px;font-weight:900;color:#0f172a;letter-spacing:-.5px;}
-    .nav-logo-text span{color:#1d4ed8;}
-    .nav-links{display:flex;align-items:center;gap:2px;}
-    .nav-link{padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;color:#64748b;cursor:pointer;transition:all .2s;text-decoration:none;border:none;background:transparent;font-family:'Plus Jakarta Sans',sans-serif;}
-    .nav-link:hover{color:#1d4ed8;background:rgba(29,78,216,.07);transform:translateY(-1px);}
-    .nav-actions{display:flex;gap:9px;align-items:center;}
-    .nav-btn-outline{padding:8px 18px;border:2px solid #1d4ed8;border-radius:9px;color:#1d4ed8;background:transparent;font-size:12.5px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all .2s;}
-    .nav-btn-outline:hover{background:#1d4ed8;color:white;transform:translateY(-2px);box-shadow:0 6px 18px rgba(29,78,216,.3);}
-    .nav-btn-fill{padding:8px 20px;border:none;border-radius:9px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:white;font-size:12.5px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all .2s;box-shadow:0 3px 12px rgba(29,78,216,.3);}
-    .nav-btn-fill:hover{background:linear-gradient(135deg,#1e40af,#1d4ed8);transform:translateY(-2px);box-shadow:0 8px 22px rgba(29,78,216,.45);}
-    </style>
-    <div class="main-nav">
-      <div class="nav-logo" onclick="window.scrollTo({top:0,behavior:'smooth'})">
-        <div class="nav-logo-icon">🧭</div>
-        <span class="nav-logo-text">PathFinder<span>.AI</span></span>
-      </div>
-      <div class="nav-links">
-        <button class="nav-link" onclick="window.scrollTo({top:0,behavior:'smooth'})">🏠 Home</button>
-        <button class="nav-link" onclick="var el=document.getElementById('feat-sec');if(el)el.scrollIntoView({behavior:'smooth'})">✨ Features</button>
-        <button class="nav-link" onclick="var el=document.getElementById('steps-sec');if(el)el.scrollIntoView({behavior:'smooth'})">🔄 How It Works</button>
-      </div>
-      <div class="nav-actions">
-        <button class="nav-btn-outline" onclick="document.querySelector('[data-testid=stButton] button[kind]') && document.querySelectorAll('button').forEach(b=>{if(b.innerText==='Login')b.click()})">🔐 Log In</button>
-        <button class="nav-btn-fill" onclick="document.querySelectorAll('button').forEach(b=>{if(b.innerText==='Signup')b.click()})">🚀 Get Started</button>
-      </div>
-    </div>""")
-
-    # ── HERO SECTION ──
-    h("""<div style="padding:72px 4% 56px;background:linear-gradient(135deg,#eef4ff 0%,#dbeafe 60%,#f0f4ff 100%);display:flex;align-items:center;gap:52px;flex-wrap:wrap;position:relative;overflow:hidden;">
-      <div style="position:absolute;top:-100px;right:-100px;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(96,165,250,.18),transparent 70%);pointer-events:none;"></div>
-      <div style="position:absolute;bottom:-80px;left:-80px;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(167,139,250,.12),transparent 70%);pointer-events:none;"></div>
-
-      <!-- LEFT TEXT -->
-      <div style="flex:1;min-width:300px;position:relative;z-index:1;">
-        <div style="display:inline-flex;align-items:center;gap:7px;background:white;border:1.5px solid #bfdbfe;border-radius:99px;padding:6px 16px;margin-bottom:24px;box-shadow:0 2px 12px rgba(29,78,216,.1);">
-          <span style="width:8px;height:8px;background:#22c55e;border-radius:50%;display:inline-block;animation:blink 1.5s infinite;"></span>
-          <span style="font-size:11px;font-weight:800;color:#1d4ed8;letter-spacing:2px;text-transform:uppercase;font-family:'Plus Jakarta Sans',sans-serif;">AI-Powered Career Intelligence</span>
-        </div>
-        <h1 style="font-family:'Syne',sans-serif;font-size:clamp(36px,5vw,66px);font-weight:900;line-height:1.05;letter-spacing:-2px;color:#0f172a;margin-bottom:20px;">
-          Discover Your<br>
-          <span style="background:linear-gradient(135deg,#1d4ed8,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Perfect Career</span>
-        </h1>
-        <p style="font-size:16px;color:#475569;line-height:1.9;max-width:500px;margin-bottom:32px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:500;">
-          AI-driven career matching, skill roadmaps, market insights & resume analysis — powered by Llama 3. Built for students. 100% free.
-        </p>
-        <div style="display:flex;gap:13px;flex-wrap:wrap;margin-bottom:28px;">
-          <button onclick="document.querySelectorAll('button').forEach(b=>{if(b.innerText==='Signup')b.click()})"
-            style="background:linear-gradient(135deg,#1d4ed8,#2563eb);color:white;border:none;border-radius:13px;padding:14px 38px;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 6px 28px rgba(29,78,216,.4);font-family:'Plus Jakarta Sans',sans-serif;transition:all .22s;"
-            onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 12px 38px rgba(29,78,216,.55)'"
-            onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 6px 28px rgba(29,78,216,.4)'">
-            🚀 Start Free →
-          </button>
-          <button onclick="document.querySelectorAll('button').forEach(b=>{if(b.innerText==='Login')b.click()})"
-            style="background:white;color:#1d4ed8;border:2px solid #bfdbfe;border-radius:13px;padding:14px 28px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all .22s;"
-            onmouseover="this.style.borderColor='#1d4ed8';this.style.background='#eff6ff';this.style.transform='translateY(-2px)'"
-            onmouseout="this.style.borderColor='#bfdbfe';this.style.background='white';this.style.transform='translateY(0)'">
-            🔐 Log In
-          </button>
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;">
-          <span style="background:white;border:1.5px solid #bfdbfe;border-radius:99px;padding:6px 14px;color:#1d4ed8;font-size:10.5px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;">🤖 Llama 3 Powered</span>
-          <span style="background:white;border:1.5px solid #bfdbfe;border-radius:99px;padding:6px 14px;color:#1d4ed8;font-size:10.5px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;">🎯 30+ Careers</span>
-          <span style="background:white;border:1.5px solid #bfdbfe;border-radius:99px;padding:6px 14px;color:#1d4ed8;font-size:10.5px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;">📊 Market Analytics</span>
-          <span style="background:white;border:1.5px solid #bfdbfe;border-radius:99px;padding:6px 14px;color:#1d4ed8;font-size:10.5px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;">🆓 100% Free</span>
-        </div>
-      </div>
-
-      <!-- RIGHT IMAGE -->
-      <div style="flex:0 0 440px;max-width:440px;min-width:280px;position:relative;z-index:1;">
-        <div style="border-radius:24px;overflow:hidden;box-shadow:0 24px 72px rgba(29,78,216,.25);border:3px solid rgba(255,255,255,.9);transition:transform .4s,box-shadow .4s;"
-          onmouseover="this.style.transform='scale(1.025)';this.style.boxShadow='0 36px 90px rgba(29,78,216,.35)'"
-          onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 24px 72px rgba(29,78,216,.25)'">
-          <img src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=880&q=85"
-            style="width:100%;height:340px;object-fit:cover;display:block;">
-        </div>
-        <!-- Floating badges -->
-        <div style="position:absolute;top:-14px;right:-14px;background:white;border-radius:14px;padding:11px 16px;box-shadow:0 8px 28px rgba(29,78,216,.18);border:1.5px solid #bfdbfe;font-family:'Plus Jakarta Sans',sans-serif;">
-          <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;">AI Match Score</div>
-          <div style="font-size:22px;font-weight:900;color:#1d4ed8;">94%</div>
-        </div>
-        <div style="position:absolute;bottom:-14px;left:-14px;background:white;border-radius:14px;padding:11px 16px;box-shadow:0 8px 28px rgba(5,150,105,.18);border:1.5px solid #bbf7d0;font-family:'Plus Jakarta Sans',sans-serif;">
-          <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Career Growth</div>
-          <div style="font-size:22px;font-weight:900;color:#059669;">+40%</div>
-        </div>
-      </div>
-    </div>""")
-
-    # ── FEATURES SECTION ──
-    h("""<div id="feat-sec" style="padding:72px 4%;background:white;">
-    <div style="text-align:center;margin-bottom:52px;">
-      <div style="font-size:11px;font-weight:800;letter-spacing:4px;text-transform:uppercase;color:#1d4ed8;margin-bottom:10px;font-family:'Plus Jakarta Sans',sans-serif;">PLATFORM FEATURES</div>
-      <h2 style="font-family:'Syne',sans-serif;font-size:clamp(28px,3.5vw,44px);font-weight:900;color:#0f172a;margin-bottom:14px;">Why PathFinder AI?</h2>
-      <p style="font-size:15px;color:#64748b;max-width:540px;margin:0 auto;line-height:1.85;font-family:'Plus Jakarta Sans',sans-serif;">Everything you need to make confident, data-driven career decisions — all in one platform.</p>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px;">""")
-
-    feats = [
-        ("🎯","AI Career Matching","#1d4ed8","Match with 30+ careers based on personality, values, and market data. Updated with real salary & growth metrics."),
-        ("📄","Resume Scorer","#7c3aed","Upload your CV and get instant AI analysis — score breakdown, skill gaps, and personalized improvement tips."),
-        ("🗺️","Skill Roadmaps","#0891b2","Age-adaptive, step-by-step career development plans — from education path to first job and beyond."),
-        ("📊","Market Insights","#059669","Live salary benchmarks, automation risk scores, growth trends, and remote-work ratings for every career."),
-        ("🏛️","Institute Finder","#d97706","AI recommends top universities, online courses, and certifications tailored to your career and location."),
-        ("💬","AI Career Advisor","#dc2626","Chat with Llama 3 — ask anything about careers, salaries, skills, or job hunting strategies."),
+# ═══════════════════════════════════════════════════════════════════
+# CAREER KNOWLEDGE BASE (built-in fallback — 55 careers)
+# ═══════════════════════════════════════════════════════════════════
+def _builtin_careers():
+    rows = [
+        ["Software Engineer",      "Python;JavaScript;Algorithms;Git;System Design",      "BS Computer Science",       115000,28,28,7,7,5,9,5,"analytical","Technology"],
+        ["Data Scientist",         "Python;Statistics;ML;SQL;Pandas;Tableau",              "MS Data Science",           122000,36,22,6,8,4,8,6,"analytical","Technology"],
+        ["AI/ML Engineer",         "Python;TensorFlow;PyTorch;Math;Deep Learning",         "MS CS/AI",                  138000,42,15,6,9,4,8,7,"analytical","Technology"],
+        ["Cybersecurity Analyst",  "Networking;Ethical Hacking;Python;SIEM;Firewalls",     "BS Cybersecurity",          108000,32,18,7,6,5,7,6,"analytical","Technology"],
+        ["Cloud Engineer",         "AWS;Azure;DevOps;Linux;Terraform",                     "BS CS / Cloud Certs",       125000,35,20,7,6,5,9,5,"analytical","Technology"],
+        ["Mobile Developer",       "Flutter;Swift;Kotlin;React Native;Firebase",           "BS Computer Science",       110000,26,25,7,8,4,8,5,"analytical","Technology"],
+        ["DevOps Engineer",        "Docker;Kubernetes;CI/CD;Linux;Scripting",              "BS CS / DevOps Certs",      118000,30,22,6,6,4,8,6,"analytical","Technology"],
+        ["Blockchain Developer",   "Solidity;Web3;Cryptography;Smart Contracts",           "BS CS / Blockchain Certs",  130000,38,10,7,9,4,8,6,"analytical","Technology"],
+        ["UX Designer",            "Figma;User Research;CSS;Prototyping;Usability",        "BS Design / HCI",            92000,22,20,8,10,7,8,5,"creative","Technology"],
+        ["Product Manager",        "Communication;Strategy;Agile;Analytics",               "BS Business / MBA",         132000,24,12,5,7,9,6,7,"social","Technology"],
+        ["Game Developer",         "Unity;C++;3D Modeling;Physics;Shaders",                "BS Computer Science",        95000,20,18,6,10,5,7,7,"creative","Technology"],
+        ["Data Engineer",          "Spark;Kafka;SQL;Python;ETL Pipelines",                 "BS CS / Data Eng",          118000,33,25,6,6,4,9,5,"analytical","Technology"],
+        ["QA Engineer",            "Testing;Selenium;JIRA;Automation;Debugging",           "BS CS / ISTQB Cert",         82000,18,30,7,5,5,8,4,"analytical","Technology"],
+        ["IT Project Manager",     "Leadership;Agile;Budgeting;Risk Mgmt;PMP",             "BS IT / PMP Cert",           98000,12,15,6,5,9,7,6,"social","Technology"],
+        ["Robotics Engineer",      "ROS;Python;Mechanical Design;Sensors;Control",         "BS Robotics/Mechatronics",  115000,35,10,7,9,5,7,6,"analytical","Technology"],
+        ["General Physician",      "Medicine;Diagnosis;Patient Care;Pharmacology",         "MBBS (5 years)",            185000, 8, 5,3,6,10,2,9,"analytical","Healthcare"],
+        ["Surgeon",                "Surgery;Anatomy;Precision;Stamina",                    "MBBS + 5yr Residency",      360000, 4, 4,2,7, 8,1,10,"analytical","Healthcare"],
+        ["Dentist",                "Oral Surgery;Patient Care;Radiology;Anatomy",          "BDS (5 years)",             155000, 6, 8,5,6, 8,2, 8,"analytical","Healthcare"],
+        ["Nurse",                  "Patient Care;Empathy;IVs;Monitoring;First Aid",        "BSN (4 years)",              78000,14,10,4,6,10,3, 8,"social","Healthcare"],
+        ["Pharmacist",             "Pharmacology;Chemistry;Patient Counseling",            "Pharm-D (5 years)",         120000, 6,25,6,5, 7,5, 7,"analytical","Healthcare"],
+        ["Psychologist",           "Empathy;Counseling;CBT;Research;Assessment",           "MS Psychology",              82000,22, 5,7,6,10,6, 7,"social","Healthcare"],
+        ["Physiotherapist",        "Anatomy;Rehab Exercises;Patient Care;Sports Science",  "BS Physiotherapy",           68000,18, 8,6,7, 9,5, 6,"social","Healthcare"],
+        ["Nutritionist",           "Dietetics;Biology;Counseling;Meal Planning",           "BS Nutrition",               58000,20,12,7,7, 8,6, 5,"analytical","Healthcare"],
+        ["Radiologist",            "Medical Imaging;Anatomy;Diagnosis;Radiology",          "MBBS + Residency",          350000, 5, 8,5,5, 6,3, 8,"analytical","Healthcare"],
+        ["Civil Engineer",         "AutoCAD;Structural Analysis;Project Mgmt;Math",        "BS Civil Engineering",       86000,10,14,6,5,6,5,6,"analytical","Engineering"],
+        ["Mechanical Engineer",    "CAD;Thermodynamics;Manufacturing;Physics",             "BS Mechanical Engineering",  88000,12,20,6,6,5,4,6,"analytical","Engineering"],
+        ["Electrical Engineer",    "Circuit Design;PLC;AutoCAD;Power Systems",             "BS Electrical Engineering",  90000,12,18,6,6,5,4,6,"analytical","Engineering"],
+        ["Chemical Engineer",      "Chemistry;Process Design;Thermodynamics;Safety",       "BS Chemical Engineering",    95000,10,18,5,7,5,4,7,"analytical","Engineering"],
+        ["Architect",              "AutoCAD;3D Modeling;Design;Urban Planning",            "B.Arch (5 years)",           82000, 9,14,7,10,7,6,6,"creative","Engineering"],
+        ["Environmental Engineer", "GIS;Environmental Law;Chemistry;Data Analysis",        "BS Environmental Eng",       78000,16,12,7,7,6,6,6,"analytical","Engineering"],
+        ["Financial Analyst",      "Excel;Financial Modeling;Bloomberg;Accounting;CFA",    "BS Finance",                 87000,12,28,5,6,6,5,8,"analytical","Finance"],
+        ["Investment Banker",      "Financial Modeling;Valuation;Excel;Networking;CFA",    "BS Finance + MBA",          190000, 6,18,2,6,8,2,10,"analytical","Finance"],
+        ["Actuary",                "Statistics;Risk Modeling;Excel;Probability;Coding",    "BS Mathematics",            115000,22,18,7,5,4,7, 5,"analytical","Finance"],
+        ["Accountant",             "Excel;Tax Law;Tally;Bookkeeping;Audit",                "BS Accounting / CA",         72000, 6,40,7,3,5,7, 6,"analytical","Finance"],
+        ["Marketing Manager",      "SEO;Analytics;Creativity;Branding;CRM",               "BS Marketing",               97000,14,14,6,8,8,6, 7,"creative","Business"],
+        ["Entrepreneur",           "Leadership;Risk Tolerance;Finance;Networking;Vision",  "Variable (Any)",            104000,32, 4,5,10,9,7,10,"social","Business"],
+        ["HR Manager",             "Communication;Labor Law;Empathy;Recruitment;HRMS",     "BS HRM",                     82000, 9,18,7, 5,10,6, 6,"social","Business"],
+        ["Supply Chain Manager",   "Logistics;SAP;Inventory;Negotiation;ERP",              "BS Supply Chain / MBA",      92000,14,22,6, 5, 7,5, 7,"analytical","Business"],
+        ["Business Analyst",       "SQL;Excel;Process Mapping;Communication;JIRA",         "BS Business / CS",           96000,18,20,6, 6, 7,6, 6,"analytical","Business"],
+        ["School Teacher",         "Communication;Subject Expertise;Patience;Ed Tech",     "B.Ed (4 years)",             47000, 6, 4,7,8,10,6,5,"social","Education"],
+        ["University Professor",   "Research;Writing;Teaching;Publishing;Grant Writing",   "PhD (4-6 years)",            92000,12, 4,8,9, 8,7,6,"analytical","Education"],
+        ["Educational Consultant", "Curriculum Design;Training;Communication;Ed Policy",   "MS Education",               68000,16, 8,7,7, 7,7,5,"social","Education"],
+        ["Graphic Designer",       "Adobe Suite;Typography;Branding;Illustration",         "BS Graphic Design",          57000,12,28,7,10,6,7,4,"creative","Creative Arts"],
+        ["Content Creator",        "Video Editing;SEO;Social Media;Storytelling",          "BS Media / Self-taught",     55000,24,15,7,10,7,8,5,"creative","Creative Arts"],
+        ["Journalist",             "Writing;Research;Ethics;Interviewing;Multimedia",      "BS Journalism",              58000, 6, 8,6, 8,9,6,7,"creative","Media"],
+        ["Musician",               "Music Theory;Instrument;Composition;Performance",      "BM Music / Self-trained",    52000, 6, 4,7,10,8,7,7,"creative","Creative Arts"],
+        ["Film Director",          "Storytelling;Cinematography;Leadership;Editing",       "BFA Film",                   78000,10, 8,6,10,8,5,8,"creative","Creative Arts"],
+        ["Interior Designer",      "AutoCAD;3D Rendering;Color Theory;Client Mgmt",       "BS Interior Design",          62000,12,18,7,10,7,6,5,"creative","Creative Arts"],
+        ["Marine Biologist",       "Biology;Field Research;Statistics;GIS;Diving",         "MS Marine Biology",           62000,10, 8,8, 8,5,5,6,"analytical","Science"],
+        ["Environmental Scientist","Chemistry;GIS;Environmental Law;Data Analysis",        "BS Environmental Science",    72000,14,10,7, 7,6,6,6,"analytical","Science"],
+        ["Research Scientist",     "Lab Skills;Statistics;Publishing;Critical Thinking",   "PhD in any Science",          90000,18, 8,8, 9,5,7,7,"analytical","Science"],
+        ["Lawyer",                 "Constitutional Law;Research;Argumentation;Writing",    "LLB + Bar Exam",             125000, 8, 8,4, 7,8,3,9,"analytical","Law"],
+        ["Social Worker",          "Empathy;Case Mgmt;Social Policy;Counseling",           "BS Social Work",              52000,16, 4,6, 6,10,5,8,"social","Social Services"],
+        ["Pilot",                  "Aviation;Physics;Navigation;Quick Decisions;Stamina",  "BS Aviation + License",      132000, 6, 8,5, 5,6,3,7,"analytical","Transportation"],
+        ["Chef",                   "Culinary Arts;Creativity;Kitchen Mgmt;Food Safety",    "Culinary Degree / Diploma",   67000, 9, 8,4,10,8,3,8,"creative","Hospitality"],
+        ["Hotel Manager",          "Hospitality;Leadership;Finance;Customer Service",      "BS Hospitality",              82000,10,12,5, 6,9,4,7,"social","Hospitality"],
     ]
-    for ico, title, color, desc in feats:
-        h(f"""<div style="background:white;border:1.5px solid #e0efff;border-radius:18px;padding:28px;transition:all .3s;"
-  onmouseover="this.style.transform='translateY(-6px)';this.style.boxShadow='0 18px 48px rgba(29,78,216,.12)';this.style.borderColor='{color}40'"
-  onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='none';this.style.borderColor='#e0efff'">
-  <div style="width:52px;height:52px;background:linear-gradient(135deg,{color}15,{color}28);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:16px;border:1.5px solid {color}22;">{ico}</div>
-  <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:16px;font-weight:800;color:#0f172a;margin-bottom:8px;">{title}</div>
-  <div style="font-size:13.5px;color:#64748b;line-height:1.85;font-family:'Plus Jakarta Sans',sans-serif;">{desc}</div>
-</div>""")
+    cols = ["career","required_skills","education_path","avg_salary_usd","growth_rate",
+            "automation_risk","work_life_balance","creativity_level","social_interaction",
+            "remote_possibility","burnout_risk","cognitive_preference","industry"]
+    return pd.DataFrame(rows, columns=cols)
 
-    h("</div></div>")
+# ═══════════════════════════════════════════════════════════════════
+# LOAD CAREER DATA  ← reads from career_guidance_dataset.csv
+# The student CSV has a different schema; we use the built-in career
+# knowledge base for matching, and the student CSV for ML training.
+# ═══════════════════════════════════════════════════════════════════
+@st.cache_data
+def load_career_data():
+    return _builtin_careers()
 
-    # ── HOW IT WORKS ──
-    h("""<div id="steps-sec" style="padding:72px 4%;background:linear-gradient(135deg,#eef4ff,#f0f4ff);">
-    <div style="text-align:center;margin-bottom:52px;">
-      <div style="font-size:11px;font-weight:800;letter-spacing:4px;text-transform:uppercase;color:#1d4ed8;margin-bottom:10px;font-family:'Plus Jakarta Sans',sans-serif;">SIMPLE PROCESS</div>
-      <h2 style="font-family:'Syne',sans-serif;font-size:clamp(28px,3.5vw,44px);font-weight:900;color:#0f172a;">How It Works</h2>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px;max-width:900px;margin:0 auto;">""")
 
-    steps = [
-        ("1","📋","Build Your Profile","Tell us about your personality, values, work style, and goals. It takes just 3 minutes.","#1d4ed8"),
-        ("2","🎯","Get AI Matches","Our ML algorithm scores 30+ careers based on your profile and real market data.","#7c3aed"),
-        ("3","🗺️","Follow Your Roadmap","Get a personalized step-by-step plan from where you are now to your dream career.","#0891b2"),
-    ]
-    for num, ico, title, desc, color in steps:
-        h(f"""<div style="background:white;border-radius:18px;padding:28px 24px;text-align:center;border:1.5px solid #e0efff;transition:all .3s;"
-  onmouseover="this.style.transform='translateY(-6px)';this.style.boxShadow='0 18px 48px rgba(29,78,216,.12)'"
-  onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='none'">
-  <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,{color},{color}cc);display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-weight:900;font-size:20px;color:white;margin:0 auto 16px;">{num}</div>
-  <div style="font-size:28px;margin-bottom:12px;">{ico}</div>
-  <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:16px;font-weight:800;color:#0f172a;margin-bottom:8px;">{title}</div>
-  <div style="font-size:13px;color:#64748b;line-height:1.85;font-family:'Plus Jakarta Sans',sans-serif;">{desc}</div>
-</div>""")
+# ═══════════════════════════════════════════════════════════════════
+# LOAD INSTITUTE DATA  (WITH WEB SCRAPING)
+# ═══════════════════════════════════════════════════════════════════
+import requests
+from bs4 import BeautifulSoup
 
-    h("</div></div>")
+@st.cache_data
+def load_institute_data():
+    # ── ATTEMPT 1: WEB SCRAPING (Dynamic Data) ─────────────────────
+    try:
+        # We are scraping Wikipedia's list of universities as a demo
+        url = "https://en.wikipedia.org/wiki/List_of_universities_in_Pakistan"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Find the main table (usually class 'wikitable')
+            table = soup.find('table', {'class': 'wikitable'})
+            
+            rows = []
+            if table:
+                for tr in table.find_all('tr')[1:]:  # Skip header row
+                    cols = tr.find_all('td')
+                    if len(cols) >= 3:
+                        name = cols[0].get_text(strip=True)
+                        location = cols[1].get_text(strip=True)
+                        # Split location into City/Country (Simplified logic)
+                        city = location.split(',')[0] if ',' in location else location
+                        country = "Pakistan"
+                        
+                        # Map generic types based on name (Simple NLP logic)
+                        inst_type = "University"
+                        if "Institute" in name: inst_type = "Institute"
+                        if "College" in name: inst_type = "College"
+                        
+                        rows.append({
+                            "name": name,
+                            "city": city,
+                            "country": country,
+                            "type": inst_type,
+                            "career_field": "General Education", # Wiki doesn't always have this specific field
+                            "academic_level": "Undergraduate",
+                            "fee_min": 2000, "fee_max": 8000, # Generic fees since Wiki doesn't list them
+                            "ranking": 7,
+                            "scholarship": True,
+                            "website": "https://en.wikipedia.org" + (cols[0].find('a')['href'] if cols[0].find('a') else "")
+                        })
+            
+            if rows:
+                st.toast("✅ Fetched live data via Web Scraping!", icon="🕷️")
+                return pd.DataFrame(rows)
 
-    # ── CTA SECTION ──
-    h("""<div style="padding:72px 4%;background:linear-gradient(135deg,#0f172a,#1e3a8a,#1d4ed8);text-align:center;">
-    <h2 style="font-family:'Syne',sans-serif;font-size:clamp(28px,3.5vw,46px);font-weight:900;color:white;margin-bottom:16px;">Ready to Find Your Perfect Career?</h2>
-    <p style="font-size:16px;color:rgba(255,255,255,.7);max-width:500px;margin:0 auto 32px;line-height:1.85;font-family:'Plus Jakarta Sans',sans-serif;">Join thousands of students who discovered their dream career with PathFinder AI.</p>
-    <button onclick="document.querySelectorAll('button').forEach(b=>{if(b.innerText==='Signup')b.click()})"
-      style="background:white;color:#1d4ed8;border:none;border-radius:13px;padding:16px 48px;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 8px 32px rgba(0,0,0,.2);font-family:'Plus Jakarta Sans',sans-serif;transition:all .22s;"
-      onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 16px 48px rgba(0,0,0,.3)'"
-      onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 8px 32px rgba(0,0,0,.2)'">
-      🚀 Get Started Free →
-    </button>
-    </div>""")
+    except Exception as e:
+        st.warning(f"⚠️ Scraping failed ({e}). Loading fallback data...")
 
-    # ── FOOTER ──
-    h("""<div style="padding:40px 4%;background:#0f172a;text-align:center;">
-    <div style="display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:12px;">
-      <div style="width:32px;height:32px;background:linear-gradient(135deg,#1d4ed8,#60a5fa);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;">🧭</div>
-      <span style="font-family:'Syne',sans-serif;font-size:18px;font-weight:900;color:white;">PathFinder<span style="color:#60a5fa;">.AI</span></span>
-    </div>
-    <div style="font-size:12.5px;color:rgba(255,255,255,.35);font-family:'Plus Jakarta Sans',sans-serif;">© 2025 PathFinder AI · Built with ❤️ · Powered by Groq Llama 3 · 100% Free · No Ads</div>
-    </div>""")
+    # ── ATTEMPT 2: CSV FILE (Fallback / Static) ──────────────────────
+    if os.path.exists(INST_PATH):
+        try:
+            df = pd.read_csv(INST_PATH)
+            df.columns = [c.strip() for c in df.columns]
+            # Ensure required cols exist
+            for col in ["name","city","country","type","career_field",
+                        "academic_level","fee_min","fee_max","ranking","scholarship","website"]:
+                if col not in df.columns:
+                    df[col] = "Unknown" if col in ["name","city","type","career_field","academic_level","website"] else 0
+            df["fee_max"] = pd.to_numeric(df["fee_max"], errors="coerce").fillna(0).astype(int)
+            df["fee_min"] = pd.to_numeric(df["fee_min"], errors="coerce").fillna(0).astype(int)
+            df["ranking"] = pd.to_numeric(df["ranking"], errors="coerce").fillna(5).astype(int)
+            return df
+        except Exception as e:
+            st.warning(f"⚠️ institutes_dataset.csv error: {e}")
 
-# ══════════════════════════════════════════════════════
-# LOGIN PAGE
-# ══════════════════════════════════════════════════════
-elif pg == "login":
-    h("""<div class="auth-page-bg">
-<svg style="position:absolute;inset:0;width:100%;height:100%;opacity:.07;pointer-events:none;" xmlns="http://www.w3.org/2000/svg">
-<defs><pattern id="lg" width="36" height="36" patternUnits="userSpaceOnUse"><circle cx="18" cy="18" r="1.4" fill="#1d4ed8"/></pattern></defs>
-<rect width="100%" height="100%" fill="url(#lg)"/>
-</svg>
-</div>""")
-    _,cc,_=st.columns([1,1.4,1])
-    with cc:
-        h("""<div style="height:60px;"></div>""")
-        h("""<div class="auth-wrap fu">
-<div style="text-align:center;margin-bottom:32px;">
-  <div style="width:64px;height:64px;background:linear-gradient(135deg,#1d4ed8,#60a5fa);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 16px;box-shadow:0 8px 28px rgba(29,78,216,.4);transition:transform .3s;" onmouseover="this.style.transform='scale(1.08) rotate(-5deg)'" onmouseout="this.style.transform='scale(1) rotate(0)'">🧭</div>
-  <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:900;color:#0f172a;letter-spacing:-.8px;margin-bottom:6px;">Welcome Back</div>
-  <div style="font-size:13.5px;color:#64748b;font-family:'Plus Jakarta Sans',sans-serif;font-weight:500;">Sign in to your PathFinder account</div>
-</div>""")
-        em=st.text_input("Email Address",placeholder="your@email.com",key="li_em")
-        pw=st.text_input("Password",placeholder="Your password",type="password",key="li_pw")
-        if st.button("🔐 Sign In →",use_container_width=True,key="doli"):
-            if em in st.session_state.accounts and st.session_state.accounts[em]["password"]==pw:
-                st.session_state.logged_in=True; st.session_state.current_user=em
-                st.session_state.profile.update({"name":st.session_state.accounts[em]["name"],"country":st.session_state.accounts[em].get("country","")})
-                st.session_state.page="dashboard"; st.session_state.app_page="home"; st.rerun()
-            else: st.error("Invalid email or password.")
-        h("""<div style="display:flex;align-items:center;gap:12px;margin:18px 0 12px;">
-<div style="flex:1;height:1.5px;background:linear-gradient(90deg,transparent,#dbeafe);"></div>
-<span style="font-size:11.5px;color:#94a3b8;font-weight:600;">or continue with</span>
-<div style="flex:1;height:1.5px;background:linear-gradient(90deg,#dbeafe,transparent);"></div>
-</div>""")
-        h('<button class="li-btn" onclick="alert(\'Connect LinkedIn API credentials to enable this.\')"><div style="width:22px;height:22px;border-radius:5px;background:#0a66c2;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:white;">in</div> Continue with LinkedIn</button>')
-        h('</div>')
-        if st.button("No account? Create one →",key="gsu",use_container_width=True):
-            st.session_state.page="signup"; st.rerun()
-        if st.button("← Back to Home",key="lhm"):
-            st.session_state.page="landing"; st.rerun()
+    # ── ATTEMPT 3: BUILT-IN FALLBACK (If CSV is missing too) ─────────
+    return _builtin_institutes()
 
-# ══════════════════════════════════════════════════════
-# SIGNUP PAGE
-# ══════════════════════════════════════════════════════
-elif pg == "signup":
-    h("""<div class="auth-page-bg">
-<svg style="position:absolute;inset:0;width:100%;height:100%;opacity:.07;pointer-events:none;" xmlns="http://www.w3.org/2000/svg">
-<defs><pattern id="sg" width="36" height="36" patternUnits="userSpaceOnUse"><circle cx="18" cy="18" r="1.4" fill="#1d4ed8"/></pattern></defs>
-<rect width="100%" height="100%" fill="url(#sg)"/>
-</svg>
-</div>""")
-    _,cc,_=st.columns([1,1.6,1])
-    with cc:
-        h("""<div style="height:48px;"></div>""")
-        h("""<div class="auth-wrap fu">
-<div style="text-align:center;margin-bottom:28px;">
-  <div style="width:64px;height:64px;background:linear-gradient(135deg,#1d4ed8,#7c3aed);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 16px;box-shadow:0 8px 28px rgba(124,58,237,.35);transition:transform .3s;" onmouseover="this.style.transform='scale(1.08) rotate(-5deg)'" onmouseout="this.style.transform='scale(1) rotate(0)'">🚀</div>
-  <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:900;color:#0f172a;letter-spacing:-.8px;margin-bottom:6px;">Create Account</div>
-  <div style="font-size:13.5px;color:#64748b;font-family:'Plus Jakarta Sans',sans-serif;font-weight:500;">Start your career discovery — 100% free</div>
-  <div style="display:flex;gap:8px;justify-content:center;margin-top:10px;">
-    <span class="tip-badge">🎯 30+ Careers</span>
-    <span class="tip-badge">🤖 AI Powered</span>
-    <span class="tip-badge">🆓 Free Forever</span>
-  </div>
-</div>""")
-        ca,cb=st.columns(2)
-        with ca: nm=st.text_input("Full Name",placeholder="Your full name",key="su_nm")
-        with cb: em=st.text_input("Email",placeholder="your@email.com",key="su_em")
-        cc2,cd=st.columns(2)
-        with cc2:
-            pw=st.text_input("Password",placeholder="Create password",type="password",key="sup")
-            h('<div class="pw-rule">Max 8 chars · 1 uppercase · 1 digit</div>')
-        with cd:
-            ct=st.selectbox("Country",["Select country","Pakistan","India","United States","United Kingdom","UAE","Saudi Arabia","Canada","Australia","Other"],key="suc")
-        tr=st.checkbox("I agree to the Terms & Conditions",key="sut")
-        if st.button("Create Account →",use_container_width=True,key="dos"):
-            if not tr: st.error("Please accept the Terms & Conditions.")
-            elif ct=="Select country": st.error("Please select your country.")
-            elif not nm or not em or not pw: st.error("Please fill in all fields.")
-            elif em in st.session_state.accounts: st.error("Email already registered. Please log in.")
-            else:
-                ok,msg=validate_password(pw)
-                if not ok: st.error(msg)
-                else:
-                    st.session_state.accounts[em]={"name":nm,"password":pw,"country":ct}
-                    st.session_state.logged_in=True; st.session_state.current_user=em
-                    st.session_state.profile.update({"name":nm,"country":ct})
-                    st.session_state.page="dashboard"; st.session_state.app_page="home"; st.rerun()
-        h("""<div style="display:flex;align-items:center;gap:12px;margin:18px 0 12px;">
-<div style="flex:1;height:1.5px;background:linear-gradient(90deg,transparent,#dbeafe);"></div>
-<span style="font-size:11.5px;color:#94a3b8;font-weight:600;">or sign up with</span>
-<div style="flex:1;height:1.5px;background:linear-gradient(90deg,#dbeafe,transparent);"></div>
-</div>""")
-        h('<button class="li-btn" onclick="alert(\'Connect LinkedIn API credentials to enable this.\')"><div style="width:22px;height:22px;border-radius:5px;background:#0a66c2;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:white;">in</div> Continue with LinkedIn</button>')
-        h('</div>')
-        if st.button("Already have an account? Sign In →",key="gli",use_container_width=True):
-            st.session_state.page="login"; st.rerun()
-        if st.button("← Back to Home",key="shm"):
-            st.session_state.page="landing"; st.rerun()
+# ═══════════════════════════════════════════════════════════════════
+# ML MODEL  (uses career knowledge base)
+# ═══════════════════════════════════════════════════════════════════
+def augment(df, n=600):
+    rows = []
+    per = max(1, n // len(df))
+    for _, row in df.iterrows():
+        for _ in range(per):
+            nr = row.copy()
+            for c in FEATURE_COLS:
+                nr[c] = float(np.clip(row[c] + np.random.normal(0, .45), 1, 10))
+            rows.append(nr)
+    return pd.concat([df, pd.DataFrame(rows)], ignore_index=True)
 
-# ══════════════════════════════════════════════════════
-# DASHBOARD
-# ══════════════════════════════════════════════════════
-elif pg == "dashboard":
-    if not st.session_state.logged_in: st.session_state.page="login"; st.rerun()
-    p=st.session_state.profile; uname=p.get("name","User"); ap=st.session_state.app_page
+def do_train(df, n_aug=600):
+    aug = augment(df, n_aug)
+    X = aug[FEATURE_COLS].values
+    y = aug["career"].values
+    sc = MinMaxScaler()
+    Xs = sc.fit_transform(X)
+    Xtr, Xte, ytr, yte = train_test_split(Xs, y, test_size=.2, random_state=42)
+    rf = RandomForestClassifier(n_estimators=200, max_depth=12, random_state=42, n_jobs=-1)
+    rf.fit(Xtr, ytr)
+    acc = accuracy_score(yte, rf.predict(Xte))
+    cv = cross_val_score(rf, Xs, y, cv=5)
+    joblib.dump(rf, MODEL_PATH)
+    joblib.dump(sc, SCALER_PATH)
+    return {"model":rf,"scaler":sc,"accuracy":acc,"cv_mean":cv.mean(),"cv_std":cv.std(),
+            "fi":dict(zip(FEATURE_COLS, rf.feature_importances_)),"n_samples":len(aug)}
 
+@st.cache_resource
+def get_model(_hash):
+    df = load_career_data()
+    if os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH):
+        return {"model":joblib.load(MODEL_PATH),"scaler":joblib.load(SCALER_PATH),"cached":True,"accuracy":None}
+    return do_train(df)
+
+def ml_predict(profile, df, top_n=5):
+    r = get_model(str(len(df)))
+    m, sc = r["model"], r["scaler"]
+    v = np.array([[profile.get("work_life_balance",7), profile.get("creativity",5),
+                   profile.get("social",5), profile.get("remote",7), 5,
+                   5-profile.get("risk_tolerance",5)/2, 5]])
+    probs = m.predict_proba(sc.transform(v))[0]
+    idx = np.argsort(probs)[::-1][:top_n]
+    return [(m.classes_[i], round(probs[i]*100, 1)) for i in idx]
+
+# ═══════════════════════════════════════════════════════════════════
+# MATCHING ENGINE
+# ═══════════════════════════════════════════════════════════════════
+def compute_matches(profile, df):
+    uwlb = profile.get("work_life_balance", 7)
+    scores = []
+    for _, r in df.iterrows():
+        s = 0.0
+        s += max(0, 10 - abs(r["work_life_balance"] - uwlb)*2) * 2.0
+        s += max(0, 10 - abs(r["creativity_level"] - profile.get("creativity",5))*2) * 1.5
+        s += max(0, 10 - abs(r["social_interaction"] - profile.get("social",5))*2) * 1.2
+        s += max(0, 10 - abs(r["remote_possibility"] - profile.get("remote",7))*2) * 1.0
+        sal_s = min(10, r["avg_salary_usd"]/35000)
+        s += max(0, 10 - abs(sal_s - profile.get("income_priority",7))*1.5) * 1.5
+        s -= (r["automation_risk"]/10) * (10 - profile.get("risk_tolerance",5)) * 0.5
+        s += (r["growth_rate"]/100) * 20
+        if uwlb >= 7 and r["burnout_risk"] >= 8: s -= 15
+        elif uwlb >= 5 and r["burnout_risk"] >= 9: s -= 8
+        if profile.get("cognitive_pref") == r.get("cognitive_preference"): s += 10
+        scores.append(round(s, 2))
+    df2 = df.copy()
+    df2["raw_score"] = scores
+    mn, mx = df2["raw_score"].min(), df2["raw_score"].max()
+    df2["match_score"] = ((df2["raw_score"] - mn) / max(mx-mn, 1)) * 100
+    def bw(row):
+        if uwlb >= 7 and row["burnout_risk"] >= 8: return "HIGH"
+        if uwlb >= 5 and (row["burnout_risk"] >= 7 or row["work_life_balance"] <= 4): return "MEDIUM"
+        return "LOW"
+    df2["burnout_warning"] = df2.apply(bw, axis=1)
+    return df2.sort_values("match_score", ascending=False).reset_index(drop=True)
+
+# ═══════════════════════════════════════════════════════════════════
+# RESUME HELPERS
+# ═══════════════════════════════════════════════════════════════════
+def read_resume(f):
+    name = f.name.lower()
+    if name.endswith(".pdf") and HAS_PDF:
+        r = PyPDF2.PdfReader(io.BytesIO(f.read()))
+        return "\n".join(p.extract_text() or "" for p in r.pages)
+    elif name.endswith(".docx") and HAS_DOCX:
+        return docx2txt.process(io.BytesIO(f.read()))
+    return f.read().decode("utf-8", errors="ignore")
+
+def analyze_resume(text, age, profile, career=""):
+    sys_p = ("You are an expert career counselor. Analyze and provide:\n"
+             "1. Key Strengths (3-5)\n2. Skill Gaps for target career\n"
+             "3. Age-appropriate feedback\n4. 3 Immediate action items\n"
+             "5. Resume Score /100\nBe encouraging but honest.")
+    prompt = f"Age:{age}\nTarget Career:{career or 'Not specified'}\nProfile:{json.dumps(profile)}\n\nRESUME:\n{text[:4000]}"
+    return groq_complete([{"role":"user","content":prompt}], system=sys_p, max_tokens=1500)
+
+def analyze_persona(profile):
+    sys_p = "You are a psychometric career analyst. Create a concise but insightful career persona profile (150 words max)."
+    return groq_complete([{"role":"user","content":f"Create career persona:\n{json.dumps(profile,indent=2)}"}],
+                         system=sys_p, max_tokens=300)
+
+# ═══════════════════════════════════════════════════════════════════
+# PLOTLY THEME
+# ═══════════════════════════════════════════════════════════════════
+def pf_layout(**kwargs):
+    base = dict(
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(255,255,255,0.7)",
+        font=dict(color="#1a1a2e", family="Plus Jakarta Sans"),
+        xaxis=dict(gridcolor="#e8eaf6", linecolor="#d0d7f0"),
+        yaxis=dict(gridcolor="#e8eaf6", linecolor="#d0d7f0"),
+        title_font=dict(family="Syne", size=15, color="#3D52A0"),
+        legend=dict(bgcolor="rgba(255,255,255,0.8)", bordercolor="#d0d7f0", borderwidth=1),
+        margin=dict(l=10, r=10, t=50, b=10),
+    )
+    base.update(kwargs)
+    return base
+
+# ═══════════════════════════════════════════════════════════════════
+# HELPERS
+# ═══════════════════════════════════════════════════════════════════
+def get_career_avatar(career_name, style="notionists"):
+    safe_name = career_name.replace(" ", "%20")
+    return f"https://api.dicebear.com/7.x/{style}/svg?seed={safe_name}&backgroundColor=transparent"
+
+def highlight_keywords(text):
+    keywords = ["creative","analytical","social","leader","strategic","risk","growth",
+                "team","logic","detail-oriented","innovative","independent"]
+    for k in keywords:
+        pattern = re.compile(r'\b(' + re.escape(k) + r')\b', re.IGNORECASE)
+        text = pattern.sub(r'<b>\1</b>', text)
+    return text
+
+def apply_clean_format(text):
+    h1c, h2c, h3c, tc = "#3D52A0","#7091E6","#8697C4","#334155"
+    lines = text.split('\n')
+    html_out = ""
+    in_list = False
+    for line in lines:
+        s = line.strip()
+        if s.startswith("- "):
+            if not in_list: html_out += "<ul style='list-style:none;padding-left:0;'>"
+            in_list = True
+            html_out += (f"<li style='margin-bottom:8px;padding-left:20px;position:relative;"
+                         f"color:{tc};line-height:1.6;'>"
+                         f"<span style='position:absolute;left:0;top:4px;color:{h2c};'>●</span> {s[2:]}</li>")
+        else:
+            if in_list: html_out += "</ul>"; in_list = False
+            if s.startswith("### "):
+                html_out += f"<h3 style='color:{h3c};border-bottom:2px solid {h3c};padding-bottom:5px;margin-top:25px;font-family:Syne,sans-serif;'>{s[4:]}</h3>"
+            elif s.startswith("## "):
+                html_out += f"<h2 style='color:{h2c};border-bottom:2px solid {h2c};padding-bottom:5px;margin-top:30px;font-family:Syne,sans-serif;'>{s[3:]}</h2>"
+            elif s.startswith("# "):
+                html_out += f"<h1 style='color:{h1c};border-bottom:3px solid {h1c};padding-bottom:8px;margin-top:35px;font-family:Syne,sans-serif;'>{s[2:]}</h1>"
+            elif s:
+                html_out += f"<p style='color:{tc};line-height:1.7;margin-bottom:15px;'>{s}</p>"
+    if in_list: html_out += "</ul>"
+    return html_out
+
+# ═══════════════════════════════════════════════════════════════════
+# NAV BAR
+# ═══════════════════════════════════════════════════════════════════
+def render_nav():
+    st.markdown('<div class="pf-nav"><div class="pf-brand">PathFinder<span>.AI</span></div></div>',
+                unsafe_allow_html=True)
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+
+# ═══════════════════════════════════════════════════════════════════
+# SIDEBAR
+# ═══════════════════════════════════════════════════════════════════
+def render_sidebar():
     with st.sidebar:
-        ini="".join(w[0] for w in (uname+" ").split()[:2]).upper()
+        st.markdown("""
+        <div style='text-align:center;padding:24px 0 16px;'>
+          <div style='font-family:Syne,sans-serif;font-size:1.7rem;font-weight:900;color:#EDE8F5;'>🧭</div>
+          <div style='font-family:Syne,sans-serif;font-size:1.25rem;font-weight:800;color:#EDE8F5;'>
+            PathFinder<span style="color:#ADBBDA;">.AI</span></div>
+          <div style='color:#ADBBDA;font-size:.75rem;margin-top:3px;'>Career Intelligence Platform</div>
+        </div>""", unsafe_allow_html=True)
+        st.divider()
+        pages = [
+            ("🏠","Dashboard","home"), ("📋","My Profile","profile"),
+            ("🎯","Career Matches","matches"), ("🗺️","Skill Roadmap","roadmap"),
+            ("🏫","Institute Finder","institute"), ("📄","Resume Analyzer","resume"),
+            ("💬","AI Advisor","chat"), ("📊","Market Analysis","insights"),
+            ("🤖","Model Training","training"),
+        ]
+        for icon, label, key in pages:
+            c1, c2 = st.columns([1,4])
+            with c1: st.write(icon)
+            with c2:
+                if st.button(label, key=f"sb_{key}", use_container_width=True):
+                    st.session_state.app_page = key; st.rerun()
+        st.divider()
+        p = st.session_state.user_profile
+        user = st.session_state.current_user or ""
+        info = st.session_state.accounts.get(user, {})
+        name = info.get("name","User")
+        country = info.get("country","—")
+        st.markdown(f"""
+        <div style='background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+          border-radius:16px;padding:16px;margin-top:4px;'>
+          <div style='color:#ADBBDA;font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;'>Logged in as</div>
+          <div style='font-weight:800;font-size:1rem;color:#EDE8F5;'>{name}</div>
+          <div style='color:#ADBBDA;font-size:.8rem;margin-top:2px;'>🌍 {country}</div>
+          {f"<div style='color:#ADBBDA;font-size:.78rem;margin-top:4px;'>Age {p.get('age','?')} · {p.get('academic_level','')}</div>" if p else ""}
+        </div>""", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🚪 Logout", key="sb_logout", use_container_width=True):
+            st.session_state.logged_in = False
+            st.session_state.current_user = None
+            st.session_state.page = "landing"
+            st.session_state.app_page = "home"
+            st.rerun()
 
-        # ── SIDEBAR CSS (also defined globally above but reinforced here) ──
-        h("""<style>
-section[data-testid="stSidebar"]{
-  background:linear-gradient(180deg,#04081a 0%,#070d2e 30%,#0b1540 60%,#112058 100%)!important;
-  border-right:1px solid rgba(96,165,250,.13)!important;
-}
-section[data-testid="stSidebar"] .stButton>button{
-  background:transparent!important;color:rgba(148,197,253,.58)!important;
-  border:1px solid transparent!important;border-radius:10px!important;
-  font-size:13px!important;font-weight:600!important;text-align:left!important;
-  padding:10px 14px 10px 16px!important;width:100%!important;
-  font-family:'Plus Jakarta Sans',sans-serif!important;letter-spacing:.1px!important;
-  transition:all .22s cubic-bezier(.34,1.56,.64,1)!important;
-  margin-bottom:2px!important;
-}
-section[data-testid="stSidebar"] .stButton>button:hover{
-  background:linear-gradient(90deg,rgba(29,78,216,.28),rgba(29,78,216,.10))!important;
-  color:#c7dcff!important;border-color:rgba(96,165,250,.4)!important;
-  transform:translateX(7px)!important;
-  box-shadow:0 3px 18px rgba(29,78,216,.25),inset 3px 0 0 rgba(96,165,250,.7)!important;
-  padding-left:20px!important;
-}
-section[data-testid="stSidebar"] .stButton>button:active{transform:translateX(4px) scale(.98)!important;}
-section[data-testid="stSidebar"] .stButton>button:focus{
-  outline:none!important;color:white!important;
-  box-shadow:0 0 0 2px rgba(96,165,250,.35),inset 3px 0 0 #60a5fa!important;
-}
-</style>""")
+# ═══════════════════════════════════════════════════════════════════
+# PUBLIC NAV BUTTONS
+# ═══════════════════════════════════════════════════════════════════
+def public_nav_buttons():
+    _, c1, c2, c3, c4 = st.columns([5,1,1,1,1])
+    with c1:
+        if st.button("HOME"):
+            st.session_state.page="landing"; st.session_state.modal=None; st.rerun()
+    with c2:
+        if st.button("ABOUT"):
+            st.session_state.page="about"; st.session_state.modal=None; st.rerun()
+    with c3:
+        if st.button("LOGIN"):
+            st.session_state.modal="login"; st.session_state.page="auth"; st.rerun()
+    with c4:
+        if st.button("JOIN"):
+            st.session_state.modal="signup"; st.session_state.page="auth"; st.rerun()
 
-        # Logo
-        h(f"""<div style="padding:20px 14px 16px;border-bottom:1px solid rgba(96,165,250,.1);">
-<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-  <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#0a0f2e,#1d4ed8,#60a5fa);
-    display:flex;align-items:center;justify-content:center;font-size:19px;
-    border:1.5px solid rgba(96,165,250,.28);box-shadow:0 4px 16px rgba(29,78,216,.4);flex-shrink:0;">🧭</div>
-  <div>
-    <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:900;color:white;letter-spacing:-.5px;line-height:1.1;">PathFinder<span style="background:linear-gradient(135deg,#60a5fa,#93c5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">.AI</span></div>
-    <div style="font-size:9px;color:rgba(147,197,253,.35);letter-spacing:1.5px;text-transform:uppercase;margin-top:1px;">Career Intelligence</div>
-  </div>
-</div>
-<div style="background:rgba(29,78,216,.16);border:1.5px solid rgba(96,165,250,.18);border-radius:14px;padding:11px 13px;display:flex;align-items:center;gap:9px;">
-  <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#60a5fa);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:white;flex-shrink:0;border:2px solid rgba(255,255,255,.12);">{ini}</div>
-  <div style="flex:1;min-width:0;">
-    <div style="font-size:12.5px;font-weight:800;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{uname}</div>
-    <div style="font-size:10px;color:#60a5fa;margin-top:1px;">{"🌍 "+p.get("country","") if p.get("country") else "👤 Student"}</div>
-  </div>
-  <div style="width:8px;height:8px;border-radius:50%;background:#22c55e;border:1.5px solid rgba(255,255,255,.18);flex-shrink:0;"></div>
-</div>
-</div>""")
+# ═══════════════════════════════════════════════════════════════════
+# FOOTER
+# ═══════════════════════════════════════════════════════════════════
+def render_footer():
+    st.markdown("""
+    <div class="pf-footer">
+      <div class="footer-grid">
+        <div>
+          <h2 style="color:white;font-family:Syne,sans-serif;font-size:26px;font-weight:900;margin-bottom:14px;">PathFinder AI</h2>
+          <p style="color:#8697C4;font-size:15px;line-height:1.8;">
+            Redefining career guidance through intelligence.<br>
+            A dedicated ecosystem for students aimed at global excellence.<br>
+            Built with ❤️ by students, for students.
+          </p>
+        </div>
+        <div>
+          <h4 style="color:white;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:16px;">Our Team</h4>
+          <div style="margin-bottom:18px;">
+            <div class="team-name">Tahira Muhammad Javed</div>
+            <div class="team-link"><a href="https://www.linkedin.com/in/tahira-muhammad-javed-908494392/" target="_blank">🔗 LinkedIn Profile</a></div>
+          </div>
+          <div>
+            <div class="team-name">Maheen Raza</div>
+            <div class="team-link"><a href="https://www.linkedin.com/in/maheen-raza-001b842b9/" target="_blank">🔗 LinkedIn Profile</a></div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">© 2026 PathFinder AI &nbsp;|&nbsp; Career Guidance Platform &nbsp;|&nbsp; All rights reserved.</div>
+    </div>""", unsafe_allow_html=True)
 
-        # Back to Home
-        h('<div style="padding:10px 12px 4px;">')
-        if st.button("🏠  Back to Home",key="sb_home_land",use_container_width=True):
-            st.session_state.page="landing"; st.rerun()
-        h('</div>')
+# ═══════════════════════════════════════════════════════════════════
+# PAGE: LANDING
+# ═══════════════════════════════════════════════════════════════════
+def page_landing():
+    public_nav_buttons()
+    st.markdown("""
+    <div class="hero-wrap">
+      <div class="hero-img"></div>
+      <div class="hero-overlay">
+        <h1 class="hero-title">PATHFINDER AI</h1>
+        <p style="font-size:20px;max-width:780px;font-weight:300;opacity:.92;margin-top:14px;color:white;">
+          A centralized AI ecosystem for high-performance students to discover, plan, and dominate their career paths.
+        </p>
+        <div style="margin-top:30px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
+          <div style="background:rgba(255,255,255,.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:8px 22px;color:white;font-size:.88rem;font-weight:600;">🤖 AI-Powered Matching</div>
+          <div style="background:rgba(255,255,255,.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:8px 22px;color:white;font-size:.88rem;font-weight:600;">🔥 Burnout Prevention</div>
+          <div style="background:rgba(255,255,255,.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:8px 22px;color:white;font-size:.88rem;font-weight:600;">🗺️ Personalized Roadmaps</div>
+          <div style="background:rgba(255,255,255,.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:8px 22px;color:white;font-size:.88rem;font-weight:600;">📄 Resume AI Review</div>
+        </div>
+      </div>
+    </div>""", unsafe_allow_html=True)
+    st.markdown("<div style='padding:80px 8%;text-align:center;'>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>Neural Ecosystem Systems</div>", unsafe_allow_html=True)
+    systems = [
+        (" Pathway Mapping","Our AI creates a personalized academic roadmap identifying strengths and weaknesses to guide you toward high-income skills in real-time."),
+        (" Project Showcase","A dedicated space to upload and visualize your final-year projects. Get AI feedback on your code quality, documentation, and presentation skills before you graduate."),
+        (" Dynamic Mentorship","Gain instant access to a network of global industry leaders — a direct bridge to veterans currently shaping the tech world."),
+        (" Skill Benchmarking","Compare your progress with the top 1% of students globally. Our system shows you exactly where you stand."),
+        (" Industry Interlink","Automatic profile syncing with global recruitment portals. As you complete projects, your portfolio is showcased to partners worldwide."),
+        (" Velocity Loops","A continuous feedback cycle. Every project you finish updates your trajectory, suggesting the next high-impact certification."),
+    ]
+    c1, c2, c3 = st.columns(3)
+    for i,(title,desc) in enumerate(systems):
+        with [c1,c2,c3][i%3]:
+            st.markdown(f'<div class="glass-card"><h3>{title}</h3><p>{desc}</p></div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+    render_footer()
 
-        # Dashboard nav
-        h('<div style="padding:4px 14px 5px;font-size:9px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:rgba(147,197,253,.25);">Dashboard</div>')
-        for pid,ico,label in [("home","🏠","Home"),("profile","📋","My Profile"),("matches","🎯","Career Matches"),("roadmap","🗺️","Skill Roadmap")]:
-            is_active=(ap==pid)
-            if is_active:
-                h(f"""<div style="margin:0 10px 2px;background:linear-gradient(90deg,rgba(29,78,216,.48),rgba(29,78,216,.18));
-border:1.5px solid rgba(96,165,250,.48);border-left:3px solid #60a5fa;
-border-radius:10px;padding:9px 14px;display:flex;align-items:center;gap:8px;cursor:default;">
-<span style="font-size:15px;">{ico}</span>
-<span style="font-size:13px;font-weight:800;color:white;font-family:'Plus Jakarta Sans',sans-serif;">{label}</span>
-<span style="margin-left:auto;width:7px;height:7px;border-radius:50%;background:#60a5fa;box-shadow:0 0 8px #60a5fa;"></span>
-</div>""")
+# ═══════════════════════════════════════════════════════════════════
+# PAGE: ABOUT
+# ═══════════════════════════════════════════════════════════════════
+def page_about():
+    public_nav_buttons()
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<div style='padding:60px 8%;'>", unsafe_allow_html=True)
+    st.markdown("<h1>The Architecture of PathFinder</h1>", unsafe_allow_html=True)
+    st.markdown("""
+    <div class="glass-card" style="min-height:auto;text-align:center;">
+      <p style="font-size:18px;line-height:1.9;color:#2D3748;max-width:860px;margin:0 auto;">
+        PathFinder AI was born out of a simple necessity: <b>Education is outdated, but your potential is not.</b>
+        We built this portal to act as a second brain for students. By combining AI analytics with a
+        community-first approach, we ensure that no student is left behind in the era of rapid automation.
+      </p>
+    </div>""", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+    render_footer()
+
+# ═══════════════════════════════════════════════════════════════════
+# PAGE: AUTH
+# ═══════════════════════════════════════════════════════════════════
+def page_auth():
+    public_nav_buttons()
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.session_state.logged_in:
+        user = st.session_state.current_user or ""
+        info = st.session_state.accounts.get(user, {})
+        name = info.get("name","Student"); country = info.get("country","—")
+        st.markdown(f"""
+        <div class="dash-wrap">
+          <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:900;color:var(--primary);margin-bottom:4px;">👋 Welcome back, {name}!</div>
+          <div style="color:var(--muted);font-size:14px;margin-bottom:30px;">Your PathFinder AI profile is active and ready.</div>
+          <div class="dash-grid">
+            <div class="dash-field"><div class="label">Full Name</div><div class="value">{name}</div></div>
+            <div class="dash-field"><div class="label">Email Address</div><div class="value">{user}</div></div>
+            <div class="dash-field"><div class="label">Country</div><div class="value">{country}</div></div>
+            <div class="dash-field"><div class="label">Account Status</div><div class="value" style="color:var(--success);">✅ Active</div></div>
+          </div>
+          <p style="color:var(--muted);font-size:13px;margin:0;">Use the <b>sidebar</b> to access Career Matching, Roadmaps, Resume Analysis, and more.</p>
+        </div>""", unsafe_allow_html=True)
+    elif st.session_state.modal == "login":
+        _, col_form, __ = st.columns([1,2,1])
+        with col_form:
+            st.markdown("""
+            <div class="auth-wrap">
+              <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:900;color:var(--primary);text-align:center;margin-bottom:4px;">🔐 Welcome Back</div>
+              <div style="color:var(--muted);text-align:center;font-size:13px;margin-bottom:24px;">Login to your PathFinder account</div>
+            </div>""", unsafe_allow_html=True)
+            email = st.text_input("Email Address", placeholder="you@example.com", key="li_email")
+            pwd = st.text_input("Password", type="password", placeholder="••••••••", key="li_pwd")
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("✅ Login", key="do_login"):
+                    accs = st.session_state.accounts
+                    if email in accs and accs[email]["password"] == pwd:
+                        st.session_state.logged_in = True; st.session_state.current_user = email
+                        st.session_state.page = "auth"; st.success("Logged in! 🎉"); st.rerun()
+                    elif email not in accs: st.error("❌ No account found. Please JOIN first!")
+                    else: st.error("❌ Incorrect password.")
+            with c2:
+                if st.button("✖ Close", key="cl_login"):
+                    st.session_state.modal = None; st.session_state.page = "landing"; st.rerun()
+            st.markdown("<div style='text-align:center;color:#888;font-size:13px;margin-top:14px;'>Don't have an account? <b>Click JOIN above</b></div>", unsafe_allow_html=True)
+    elif st.session_state.modal == "signup":
+        _, col_form, __ = st.columns([1,2,1])
+        with col_form:
+            st.markdown("""
+            <div class="auth-wrap">
+              <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:900;color:var(--primary);text-align:center;margin-bottom:4px;">🚀 Join PathFinder</div>
+              <div style="color:var(--muted);text-align:center;font-size:13px;margin-bottom:24px;">Create your free account today</div>
+            </div>""", unsafe_allow_html=True)
+            rname = st.text_input("Full Name", placeholder="Your full name", key="su_name")
+            remail = st.text_input("Email Address", placeholder="you@example.com", key="su_email")
+            rpwd = st.text_input("Password", type="password", placeholder="••••••••", key="su_pwd")
+            countries = ["Select your country","Pakistan","India","United States","United Kingdom",
+                         "Canada","Australia","UAE","Saudi Arabia","Germany","Other"]
+            rcountry = st.selectbox("Country", countries, key="su_country")
+            terms = st.checkbox("I agree to **Terms & Conditions** and **Privacy Policy**", key="su_terms")
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("🚀 Create Account", key="do_signup"):
+                    if not terms: st.error("Accept Terms & Conditions!")
+                    elif rcountry == "Select your country": st.error("Select your country!")
+                    elif not rname or not remail or not rpwd: st.error("Fill in all fields!")
+                    elif remail in st.session_state.accounts: st.error("Email already registered. Please LOGIN!")
+                    else:
+                        st.session_state.accounts[remail] = {"name":rname,"password":rpwd,"country":rcountry}
+                        st.session_state.logged_in = True; st.session_state.current_user = remail
+                        st.success("Account created! Welcome 🎉"); st.rerun()
+            with c2:
+                if st.button("✖ Close", key="cl_signup"):
+                    st.session_state.modal = None; st.session_state.page = "landing"; st.rerun()
+            st.markdown("<div style='text-align:center;color:#888;font-size:13px;margin-top:14px;'>Already have an account? <b>Click LOGIN above</b></div>", unsafe_allow_html=True)
+
+# ═══════════════════════════════════════════════════════════════════
+# APP: HOME DASHBOARD
+# ═══════════════════════════════════════════════════════════════════
+def app_home():
+    user = st.session_state.current_user or ""
+    info = st.session_state.accounts.get(user, {})
+    name = info.get("name", st.session_state.user_profile.get("name","Student"))
+    st.markdown(f"<h1>👋 Welcome back, {name}!</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:var(--muted);margin-top:-8px;margin-bottom:24px;'>Your Personalized Career Intelligence Dashboard.</p>", unsafe_allow_html=True)
+ 
+    has_profile = bool(st.session_state.user_profile)
+    has_matches = st.session_state.career_matches is not None
+ 
+    if not has_profile:
+        st.warning("🚀 Please complete your profile first.")
+        if st.button("📋 Go to Profile", use_container_width=True):
+            st.session_state.app_page = "profile"; st.rerun()
+        return
+ 
+    profile = st.session_state.user_profile
+    age = profile.get("age", 18)
+    top_3_careers = []
+    if has_matches:
+        matches = st.session_state.career_matches
+        if isinstance(matches, pd.DataFrame) and not matches.empty:
+            top_3_careers = matches.head(3).to_dict('records')
+    summary_text = st.session_state.get("persona_summary") or "Complete your profile to see your career persona."
+ 
+    # ── METRICS ROW (age-aware) ────────────────────────────────────
+    c1, c2, c3, c4 = st.columns(4)
+    if age <= 13:
+        top_match = top_3_careers[0].get('career','Explorer') if top_3_careers else "Explorer"
+        metrics = [
+            ("🌟","Top Talent",top_match,"var(--primary)","1.1rem"),
+            ("🎨","Creativity",f"{profile.get('creativity',5)}/10","#f59e0b","1.5rem"),
+            ("🚀","Future Tech","High" if any(x in top_match.lower() for x in ['software','engineer','data','ai','robot']) else "Moderate","#3D52A0","1.5rem"),
+            ("⚡","Superpower",profile.get("energy","Ambivert").split()[0],"var(--secondary)","1.2rem"),
+        ]
+    elif age <= 17:
+        top_cn = top_3_careers[0].get('career','Dream Job') if top_3_careers else "Dream Job"
+        sc = int(top_3_careers[0].get('match_score',0)) if top_3_careers else 0
+        gr = int(top_3_careers[0].get('growth_rate',0)) if top_3_careers else 0
+        metrics = [
+            ("🎯","Dream Job",top_cn,"var(--primary)","1.1rem"),
+            ("🎓","College Fit",f"{sc}%","#22c55e" if sc>80 else "#f59e0b","1.5rem"),
+            ("📈","Future Growth",f"+{gr}%","#3D52A0","1.5rem"),
+            ("🏫","Current Stage",profile.get("academic_level","High School"),"var(--secondary)","1.2rem"),
+        ]
+    else:
+        top_cn = top_3_careers[0].get('career','Analyze Profile') if top_3_careers else "Analyze Profile"
+        sc = int(top_3_careers[0].get('match_score',0)) if top_3_careers else 0
+        gr = int(top_3_careers[0].get('growth_rate',0)) if top_3_careers else 0
+        sc_col = "#22c55e" if sc>80 else "#f59e0b" if sc>50 else "#ef4444"
+        metrics = [
+            ("🏆","Top Match",top_cn,"var(--primary)","1.1rem"),
+            ("💯","Compatibility",f"{sc}%",sc_col,"1.5rem"),
+            ("📈","Demand",f"+{gr}%","#3D52A0","1.5rem"),
+            ("🧘","Life Fit","High" if profile.get("work_life_balance",5)>7 else "Moderate","#8b5cf6","1.2rem"),
+        ]
+    for col,(icon,label,val,color,fsize) in zip([c1,c2,c3,c4], metrics):
+        with col:
+            st.markdown(f"""
+            <div class="pf-card" style="text-align:center;">
+              <div style="font-size:2rem;margin-bottom:6px;">{icon}</div>
+              <div style="color:var(--muted);font-size:.8rem;font-weight:600;">{label}</div>
+              <div style="font-family:Syne,sans-serif;font-size:{fsize};font-weight:900;color:{color};line-height:1.2;">{val}</div>
+            </div>""", unsafe_allow_html=True)
+ 
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_left, col_right = st.columns([2,1])
+ 
+    with col_left:
+        header_map = {True: "🌟 Talents to Explore" if age<=13 else "🎯 Future Career Paths" if age<=17 else "🏆 Top Career Matches"}
+        st.markdown(f"<h3>{'🌟 Talents to Explore' if age<=13 else '🎯 Future Career Paths' if age<=17 else '🏆 Top Career Matches'}</h3>", unsafe_allow_html=True)
+        if top_3_careers:
+            for idx, career in enumerate(top_3_careers):
+                bc = "#fbbf24" if idx==0 else "#9ca3af" if idx==1 else "#b45309"
+                rank_badge = "🥇" if idx==0 else "🥈" if idx==1 else "🥉"
+                if age<=17:
+                    salary_text = career.get('industry','General')
+                else:
+                    salary_text = f"{career.get('industry','General')} | 💰 ${career.get('avg_salary_usd',0):,}/yr"
+                if age<=13:
+                    b1,b1c = f"🎨 Fun: {profile.get('creativity',5)}/10","#f59e0b"
+                    b2,b2c = f"🧠 Social: {profile.get('social',5)}/10","#3D52A0"
+                else:
+                    risk = career.get('burnout_risk',5)
+                    rc = "#22c55e" if risk<6 else "#f59e0b" if risk<8 else "#ef4444"
+                    b1,b1c = f"🔥 {'Low' if risk<6 else 'Med' if risk<8 else 'High'} Burnout",rc
+                    b2,b2c = f"📈 Growth: +{int(career.get('growth_rate',0))}%","#059669"
+                st.markdown(f"""
+                <div class="pf-card" style="border-left:5px solid {bc};margin-bottom:15px;padding:15px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                      <div style="font-size:1.1rem;font-weight:700;color:var(--text);">{rank_badge} {career['career']}</div>
+                      <div style="font-size:0.8rem;color:var(--muted);margin-top:4px;">{salary_text}</div>
+                    </div>
+                    <div style="text-align:right;">
+                      <div style="font-size:1.2rem;font-weight:800;color:var(--primary);">{int(career.get('match_score',0))}%</div>
+                      <div style="font-size:0.7rem;color:var(--muted);">Match</div>
+                    </div>
+                  </div>
+                  <div style="margin-top:10px;display:flex;gap:10px;font-size:0.8rem;">
+                    <span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;color:{b1c};font-weight:600;">{b1}</span>
+                    <span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;color:{b2c};font-weight:600;">{b2}</span>
+                  </div>
+                </div>""", unsafe_allow_html=True)
+                btn1, btn2 = st.columns(2)
+                with btn1:
+                    if st.button(f"🗺️ Roadmap", key=f"home_rm_{idx}", use_container_width=True):
+                        st.session_state.selected_career = career['career']
+                        st.session_state.app_page = "roadmap"; st.rerun()
+                with btn2:
+                    if st.button(f"🏫 Institutes", key=f"home_inst_{idx}", use_container_width=True):
+                        st.session_state.selected_career = career['career']
+                        st.session_state.app_page = "institute"; st.rerun()
+        else:
+            st.info("Complete your profile to see career matches.")
+ 
+    with col_right:
+        header = "🧒 Kid's Personality" if age<=13 else "🧑‍🎓 Student Persona" if age<=17 else "🧠 Lifestyle Alignment"
+        text = "You are full of energy! Focus on having fun while learning new skills." if age<=13 else summary_text
+        st.markdown(f"""
+        <div class="pf-card" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);">
+          <div class="pf-card-title" style="font-size:1.2rem;margin-bottom:12px;">{header}</div>
+          <p style="font-size:0.95rem;color:#334155;line-height:1.7;margin:0;">{highlight_keywords(text)}</p>
+        </div>""", unsafe_allow_html=True)
+ 
+# ═══════════════════════════════════════════════════════════════════
+# APP: PROFILE
+# ═══════════════════════════════════════════════════════════════════
+def app_profile():
+    st.markdown("<h2>📋 Build Your Profile</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='color:var(--muted);'>The more detail you provide, the better your career matches will be.</p>", unsafe_allow_html=True)
+    if "user_profile" not in st.session_state: st.session_state.user_profile = {}
+    p = st.session_state.user_profile
+    acad_opts = ["Primary School","Middle School","High School","Undergraduate","Graduate","PhD","Working Professional"]
+    cog_opts  = ["analytical","creative","social","mechanical","mixed"]
+    defaults  = {
+        "p_name": p.get("name",""), "p_age": int(p.get("age",18)),
+        "p_location": p.get("location",""),
+        "p_academic": p.get("academic_level","Undergraduate") if p.get("academic_level") in acad_opts else "Undergraduate",
+        "p_financial": p.get("financial_range","$30K–$60K"),
+        "p_hobbies": p.get("hobbies",""),
+        "p_energy": p.get("energy","Ambivert"),
+        "p_fav_sub": p.get("fav_subjects",[]),
+        "p_work_pref": p.get("work_pref",[]),
+        "p_risk": int(p.get("risk_tolerance",5)),
+        "p_creativity": int(p.get("creativity",5)),
+        "p_social": int(p.get("social",5)),
+        "p_cog": p.get("cognitive_pref","analytical") if p.get("cognitive_pref") in cog_opts else "analytical",
+        "p_wlb": int(p.get("work_life_balance",7)),
+        "p_income": int(p.get("income_priority",7)),
+        "p_travel": int(p.get("travel",5)),
+        "p_family": int(p.get("family_time",7)),
+        "p_impact": int(p.get("social_impact",5)),
+        "p_remote": int(p.get("remote",7)),
+        "p_vision": p.get("vision_25",""),
+        "p_dream":  p.get("dream_life",""),
+        "p_skills": p.get("current_skills",""),
+    }
+    for k,v in defaults.items():
+        st.session_state.setdefault(k,v)
+ 
+    t1,t2,t3,t4 = st.tabs(["👤 Basic Info","🧠 Personality","🌟 Lifestyle Goals","🔭 Long-Term Vision"])
+    with t1:
+        c1,c2 = st.columns(2)
+        with c1:
+            st.text_input("Full Name *", key="p_name")
+            st.number_input("Age", 10, 65, key="p_age")
+            st.text_input("City, Country *", key="p_location")
+        with c2:
+            st.selectbox("Academic Level", acad_opts, key="p_academic")
+            st.selectbox("Financial Range", ["Below $10K","$10K–$30K","$30K–$60K","$60K–$100K","$100K+"], index=2, key="p_financial")
+            st.text_input("Hobbies (comma separated)", key="p_hobbies")
+    with t2:
+        c1,c2 = st.columns(2)
+        with c1:
+            st.select_slider("Energy Style", ["Strong Introvert","Introvert","Ambivert","Extrovert","Strong Extrovert"], key="p_energy")
+            st.multiselect("Favourite Subjects",
+                ["Mathematics","Physics","Chemistry","Biology","Computer Science","History",
+                 "Literature","Art","Music","Economics","Psychology","Law","Business","Languages"],
+                key="p_fav_sub")
+            st.multiselect("Work Preference",
+                ["Remote","Office","Fieldwork","Creative Studio","Technical Lab","Outdoors","Hospital","Classroom"],
+                key="p_work_pref")
+        with c2:
+            st.slider("Risk Tolerance",1,10,key="p_risk",help="1=very safe, 10=love risk")
+            st.slider("Creativity Drive",1,10,key="p_creativity")
+            st.slider("Social Interaction Preference",1,10,key="p_social")
+            st.selectbox("Thinking Style",cog_opts,key="p_cog")
+    with t3:
+        c1,c2 = st.columns(2)
+        with c1:
+            st.slider("Work-Life Balance Importance",1,10,key="p_wlb")
+            st.slider("Income Priority",1,10,key="p_income")
+            st.slider("Travel Desire",1,10,key="p_travel")
+        with c2:
+            st.slider("Family Time Priority",1,10,key="p_family")
+            st.slider("Social Impact Desire",1,10,key="p_impact")
+            st.slider("Remote Work Preference",1,10,key="p_remote")
+    with t4:
+        st.text_area("Where do you see yourself in 5 years? *", height=100, key="p_vision")
+        st.text_area("What kind of life do you want? *", height=100, key="p_dream")
+        st.text_area("Current Skills / Experience *", height=80, key="p_skills")
+ 
+    st.markdown("---")
+    if st.button("💾 Save Profile & Find Matches →", use_container_width=True):
+        missing = []
+        if not st.session_state.p_name.strip():    missing.append("👤 **Full Name**")
+        if not st.session_state.p_location.strip():missing.append("👤 **Location**")
+        if not st.session_state.p_vision.strip():  missing.append("🔭 **5-Year Vision**")
+        if not st.session_state.p_dream.strip():   missing.append("🔭 **Dream Life**")
+        if not st.session_state.p_skills.strip():  missing.append("🔭 **Current Skills**")
+        if missing:
+            st.error("❌ Please complete all required fields:")
+            for f in missing: st.markdown(f"- {f}")
+            st.stop()
+        profile = dict(
+            name=st.session_state.p_name, age=st.session_state.p_age,
+            location=st.session_state.p_location, academic_level=st.session_state.p_academic,
+            financial_range=st.session_state.p_financial, hobbies=st.session_state.p_hobbies,
+            energy=st.session_state.p_energy, fav_subjects=st.session_state.p_fav_sub,
+            work_pref=st.session_state.p_work_pref, risk_tolerance=st.session_state.p_risk,
+            creativity=st.session_state.p_creativity, social=st.session_state.p_social,
+            cognitive_pref=st.session_state.p_cog, work_life_balance=st.session_state.p_wlb,
+            income_priority=st.session_state.p_income, travel=st.session_state.p_travel,
+            family_time=st.session_state.p_family, social_impact=st.session_state.p_impact,
+            remote=st.session_state.p_remote, vision_25=st.session_state.p_vision,
+            dream_life=st.session_state.p_dream, current_skills=st.session_state.p_skills,
+        )
+        st.session_state.user_profile = profile
+        df = load_career_data()
+        with st.spinner("🤖 Analyzing your profile..."):
+            st.session_state.career_matches = compute_matches(profile, df)
+            st.session_state.persona_summary = analyze_persona(profile)
+        st.success("✅ Profile saved! Redirecting to your matches...")
+        time.sleep(1)
+        st.session_state.app_page = "matches"; st.rerun()
+ 
+# ═══════════════════════════════════════════════════════════════════
+# APP: PROFILE
+# ═══════════════════════════════════════════════════════════════════
+def app_profile():
+    st.markdown("<h2>📋 Build Your Profile</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='color:var(--muted);'>The more detail you provide, the better your career matches will be.</p>", unsafe_allow_html=True)
+    if "user_profile" not in st.session_state: st.session_state.user_profile = {}
+    p = st.session_state.user_profile
+    acad_opts = ["Primary School","Middle School","High School","Undergraduate","Graduate","PhD","Working Professional"]
+    cog_opts  = ["analytical","creative","social","mechanical","mixed"]
+    defaults  = {
+        "p_name": p.get("name",""), "p_age": int(p.get("age",18)),
+        "p_location": p.get("location",""),
+        "p_academic": p.get("academic_level","Undergraduate") if p.get("academic_level") in acad_opts else "Undergraduate",
+        "p_financial": p.get("financial_range","$30K–$60K"),
+        "p_hobbies": p.get("hobbies",""),
+        "p_energy": p.get("energy","Ambivert"),
+        "p_fav_sub": p.get("fav_subjects",[]),
+        "p_work_pref": p.get("work_pref",[]),
+        "p_risk": int(p.get("risk_tolerance",5)),
+        "p_creativity": int(p.get("creativity",5)),
+        "p_social": int(p.get("social",5)),
+        "p_cog": p.get("cognitive_pref","analytical") if p.get("cognitive_pref") in cog_opts else "analytical",
+        "p_wlb": int(p.get("work_life_balance",7)),
+        "p_income": int(p.get("income_priority",7)),
+        "p_travel": int(p.get("travel",5)),
+        "p_family": int(p.get("family_time",7)),
+        "p_impact": int(p.get("social_impact",5)),
+        "p_remote": int(p.get("remote",7)),
+        "p_vision": p.get("vision_25",""),
+        "p_dream":  p.get("dream_life",""),
+        "p_skills": p.get("current_skills",""),
+    }
+    for k,v in defaults.items():
+        st.session_state.setdefault(k,v)
+
+    t1,t2,t3,t4 = st.tabs(["👤 Basic Info","🧠 Personality","🌟 Lifestyle Goals","🔭 Long-Term Vision"])
+    with t1:
+        c1,c2 = st.columns(2)
+        with c1:
+            st.text_input("Full Name *", key="p_name")
+            st.number_input("Age", 10, 65, key="p_age")
+            st.text_input("City, Country *", key="p_location")
+        with c2:
+            st.selectbox("Academic Level", acad_opts, key="p_academic")
+            st.selectbox("Financial Range", ["Below $10K","$10K–$30K","$30K–$60K","$60K–$100K","$100K+"], index=2, key="p_financial")
+            st.text_input("Hobbies (comma separated)", key="p_hobbies")
+    with t2:
+        c1,c2 = st.columns(2)
+        with c1:
+            st.select_slider("Energy Style", ["Strong Introvert","Introvert","Ambivert","Extrovert","Strong Extrovert"], key="p_energy")
+            st.multiselect("Favourite Subjects",
+                ["Mathematics","Physics","Chemistry","Biology","Computer Science","History",
+                 "Literature","Art","Music","Economics","Psychology","Law","Business","Languages"],
+                key="p_fav_sub")
+            st.multiselect("Work Preference",
+                ["Remote","Office","Fieldwork","Creative Studio","Technical Lab","Outdoors","Hospital","Classroom"],
+                key="p_work_pref")
+        with c2:
+            st.slider("Risk Tolerance",1,10,key="p_risk",help="1=very safe, 10=love risk")
+            st.slider("Creativity Drive",1,10,key="p_creativity")
+            st.slider("Social Interaction Preference",1,10,key="p_social")
+            st.selectbox("Thinking Style",cog_opts,key="p_cog")
+    with t3:
+        c1,c2 = st.columns(2)
+        with c1:
+            st.slider("Work-Life Balance Importance",1,10,key="p_wlb")
+            st.slider("Income Priority",1,10,key="p_income")
+            st.slider("Travel Desire",1,10,key="p_travel")
+        with c2:
+            st.slider("Family Time Priority",1,10,key="p_family")
+            st.slider("Social Impact Desire",1,10,key="p_impact")
+            st.slider("Remote Work Preference",1,10,key="p_remote")
+    with t4:
+        st.text_area("Where do you see yourself in 5 years? *", height=100, key="p_vision")
+        st.text_area("What kind of life do you want? *", height=100, key="p_dream")
+        st.text_area("Current Skills / Experience *", height=80, key="p_skills")
+
+    st.markdown("---")
+    if st.button("💾 Save Profile & Find Matches →", use_container_width=True):
+        missing = []
+        if not st.session_state.p_name.strip():    missing.append("👤 **Full Name**")
+        if not st.session_state.p_location.strip():missing.append("👤 **Location**")
+        if not st.session_state.p_vision.strip():  missing.append("🔭 **5-Year Vision**")
+        if not st.session_state.p_dream.strip():   missing.append("🔭 **Dream Life**")
+        if not st.session_state.p_skills.strip():  missing.append("🔭 **Current Skills**")
+        if missing:
+            st.error("❌ Please complete all required fields:")
+            for f in missing: st.markdown(f"- {f}")
+            st.stop()
+        profile = dict(
+            name=st.session_state.p_name, age=st.session_state.p_age,
+            location=st.session_state.p_location, academic_level=st.session_state.p_academic,
+            financial_range=st.session_state.p_financial, hobbies=st.session_state.p_hobbies,
+            energy=st.session_state.p_energy, fav_subjects=st.session_state.p_fav_sub,
+            work_pref=st.session_state.p_work_pref, risk_tolerance=st.session_state.p_risk,
+            creativity=st.session_state.p_creativity, social=st.session_state.p_social,
+            cognitive_pref=st.session_state.p_cog, work_life_balance=st.session_state.p_wlb,
+            income_priority=st.session_state.p_income, travel=st.session_state.p_travel,
+            family_time=st.session_state.p_family, social_impact=st.session_state.p_impact,
+            remote=st.session_state.p_remote, vision_25=st.session_state.p_vision,
+            dream_life=st.session_state.p_dream, current_skills=st.session_state.p_skills,
+        )
+        st.session_state.user_profile = profile
+        df = load_career_data()
+        with st.spinner("🤖 Analyzing your profile..."):
+            st.session_state.career_matches = compute_matches(profile, df)
+            st.session_state.persona_summary = analyze_persona(profile)
+        st.success("✅ Profile saved! Redirecting to your matches...")
+        time.sleep(1)
+        st.session_state.app_page = "matches"; st.rerun()
+
+# ═══════════════════════════════════════════════════════════════════
+# APP: MATCHES
+# ═══════════════════════════════════════════════════════════════════
+def app_matches():
+    st.markdown("<h2> Your Career Matches</h2>", unsafe_allow_html=True)
+    if st.session_state.career_matches is None:
+        st.info("📋 Complete your profile first.")
+        if st.button("Go to Profile →"): st.session_state.app_page="profile"; st.rerun()
+        return
+
+    df = st.session_state.career_matches
+    profile = st.session_state.user_profile
+    if st.session_state.persona_summary:
+        st.markdown(f"""<div class="pf-card">
+          <div class="pf-card-title">Your Persona Analysis</div>
+          <p style="color:var(--muted);line-height:1.75;margin:0;">{st.session_state.persona_summary}</p>
+        </div>""", unsafe_allow_html=True)
+
+    df_raw = load_career_data()
+    with st.spinner("Running ML predictions..."):
+        ml = ml_predict(profile, df_raw)
+
+    col_l, col_r = st.columns([3,2])
+    colors_ = ["#3D52A0","#7091E6","#ADBBDA","#22c55e","#f59e0b"]
+
+    with col_l:
+        st.markdown("<h3>Top Career Matches</h3>", unsafe_allow_html=True)
+        for i,(_, row) in enumerate(df.head(5).iterrows()):
+            color = colors_[i]
+            bc = {"LOW":"badge-green","MEDIUM":"badge-yellow","HIGH":"badge-red"}[row["burnout_warning"]]
+            bl = {"LOW":"✅ Low Burnout","MEDIUM":"⚠️ Med Burnout","HIGH":"🔴 High Burnout"}[row["burnout_warning"]]
+            skills = [s.strip() for s in str(row["required_skills"]).split(";")[:4]]
+            sbadges = " ".join(f"<span class='badge badge-blue'>{s}</span>" for s in skills)
+            st.markdown(f"""
+            <div class="match-card {'top' if i==0 else ''}" style="border-left:4px solid {color};">
+              <div class="match-rank">#{i+1}</div>
+              <div class="match-title">{row['career']}</div>
+              <div style="margin-bottom:10px;">
+                <span class='badge badge-teal'>{row.get('industry','')}</span>
+                <span class='badge {bc}'>{bl}</span>
+                <span class='badge badge-yellow'>💰 ${row['avg_salary_usd']:,}/yr</span>
+                <span class='badge badge-purple'>📈 {row['growth_rate']}% growth</span>
+              </div>
+              <div class="score-bar-bg"><div class="score-bar-fill" style="width:{row['match_score']:.0f}%;background:linear-gradient(90deg,{color},{color}88);"></div></div>
+              <div style="color:{color};font-family:Syne,sans-serif;font-weight:800;font-size:1.15rem;margin-bottom:10px;">{row['match_score']:.1f}% Match</div>
+              <div style="margin-bottom:8px;">{sbadges}</div>
+              <div style="color:var(--muted);font-size:.8rem;">🎓 {row['education_path']}</div>
+            </div>""", unsafe_allow_html=True)
+            ca, cb, cc = st.columns(3)
+            with ca:
+                if st.button("🗺️ Roadmap", key=f"rm_{i}", use_container_width=True):
+                    st.session_state.selected_career=row["career"]; st.session_state.app_page="roadmap"; st.rerun()
+            with cb:
+                if st.button("💬 Ask AI", key=f"ai_{i}", use_container_width=True):
+                    st.session_state.chat_history.append({"role":"user","content":f"Tell me about a career as {row['career']}. Based on my profile, is it a good fit?"})
+                    st.session_state.app_page="chat"; st.rerun()
+            with cc:
+                if st.button("🏫 Institutes", key=f"inst_{i}", use_container_width=True):
+                    st.session_state.selected_career=row["career"]; st.session_state.app_page="institute"; st.rerun()
+
+    with col_r:
+        if len(df) >= 3:
+            cats = ["Work-Life","Creativity","Social","Remote","Growth","Salary"]
+            fig = go.Figure()
+            rc = ["rgba(61,82,160,.7)","rgba(112,145,230,.7)","rgba(173,187,218,.7)"]
+            for i,(_, row) in enumerate(df.head(3).iterrows()):
+                v = [row["work_life_balance"],row["creativity_level"],row["social_interaction"],
+                     row["remote_possibility"],min(10,row["growth_rate"]/5),min(10,row["avg_salary_usd"]/35000)]
+                fig.add_trace(go.Scatterpolar(r=v+[v[0]],theta=cats+[cats[0]],fill="toself",
+                    name=row["career"][:20],fillcolor=rc[i],
+                    line=dict(color=rc[i].replace(".7","1"))))
+            fig.update_layout(polar=dict(bgcolor="rgba(255,255,255,.7)",
+                radialaxis=dict(visible=True,range=[0,10],tickfont=dict(color="#8697C4"),gridcolor="#e8eaf6"),
+                angularaxis=dict(tickfont=dict(color="#1a1a2e"),gridcolor="#e8eaf6")),
+                paper_bgcolor="rgba(0,0,0,0)",font=dict(color="#1a1a2e",family="Plus Jakarta Sans"),
+                legend=dict(bgcolor="rgba(255,255,255,.8)"),margin=dict(l=20,r=20,t=40,b=20),
+                title=dict(text="Top 3 — Attribute Radar",font=dict(family="Syne",size=13,color="#3D52A0")))
+            st.plotly_chart(fig, use_container_width=True)
+        st.markdown("<div class='pf-card-title'>🤖 ML Model Picks</div>", unsafe_allow_html=True)
+        for career, prob in ml:
+            st.markdown(f"""
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+              <span style="font-size:.85rem;">{career}</span>
+              <span style="color:var(--primary);font-family:Syne,sans-serif;font-weight:800;">{prob}%</span>
+            </div>""", unsafe_allow_html=True)
+        fig2 = px.bar(df.head(10),x="match_score",y="career",orientation="h",
+            color="match_score",color_continuous_scale=[[0,"#EDE8F5"],[0.5,"#7091E6"],[1,"#3D52A0"]],
+            title="Top 10 Match Scores")
+        fig2.update_layout(**pf_layout(),coloraxis_showscale=False)
+        st.plotly_chart(fig2, use_container_width=True)
+
+# ═══════════════════════════════════════════════════════════════════
+# APP: ROADMAP  (age-aware selectbox + custom text + career image)
+# ═══════════════════════════════════════════════════════════════════
+def get_career_image(career_name: str, w: int = 400, h: int = 220) -> str:
+    CAREER_PHOTO_IDS = {
+        "Software Engineer":       "1461749280684-dccba630e2f6",
+        "Data Scientist":          "1551288049-bebda4e38f71",
+        "AI/ML Engineer":          "1677442135703-1787eea5ce01",
+        "Cybersecurity Analyst":   "1550751827-4bd374c3f58b",
+        "Cloud Engineer":          "1544197150-b99a580bb7a8",
+        "Mobile Developer":        "1512941937669-90a1b58e7e9c",
+        "DevOps Engineer":         "1518432031352-d6fc5c10da5a",
+        "Blockchain Developer":    "1639762681485-074b7f938ba0",
+        "UX Designer":             "1561070791-2526d30994b5",
+        "Product Manager":         "1552664730-d307ca884978",
+        "Game Developer":          "1493711662062-fa541adb3fc8",
+        "Data Engineer":           "1558494949-ef010cbdcc31",
+        "QA Engineer":             "1587620962725-abab7fe55159",
+        "IT Project Manager":      "1531403009284-440f080d1e12",
+        "Robotics Engineer":       "1485827404703-89b55fcc595e",
+        "General Physician":       "1579684385127-1ef15d508118",
+        "Surgeon":                 "1559757175-5700dde675bc",
+        "Dentist":                 "1606811841689-23dfddce3e95",
+        "Nurse":                   "1584515933487-779824d29309",
+        "Pharmacist":              "1587854692152-cbe660dbde88",
+        "Psychologist":            "1573497019940-1c28c88b4f3e",
+        "Physiotherapist":         "1571019613454-1cb2f99b2d8b",
+        "Nutritionist":            "1490645935967-10de6ba17061",
+        "Radiologist":             "1516549655169-df83a0774514",
+        "Civil Engineer":          "1503387762-592deb58ef4e",
+        "Mechanical Engineer":     "1537462715879-360eeb61a0ad",
+        "Electrical Engineer":     "1621905251189-08b45d6a269e",
+        "Chemical Engineer":       "1532187863486-abf9dbad1b69",
+        "Architect":               "1486325212027-8081e485255e",
+        "Environmental Engineer":  "1497435334941-8c899ee9e8e9",
+        "Financial Analyst":       "1611974789855-9c2a0a7236a3",
+        "Investment Banker":       "1560472354-b33ff0c44a43",
+        "Actuary":                 "1554224155-6726b3ff858f",
+        "Accountant":              "1450101499163-c8848c66ca85",
+        "Marketing Manager":       "1533750349088-cd871a92f312",
+        "Entrepreneur":            "1507003211169-0a1dd7228f2d",
+        "HR Manager":              "1521737711867-e3b97375f902",
+        "Supply Chain Manager":    "1586528116311-ad8dd3c8310d",
+        "Business Analyst":        "1460925895917-afdab827c52f",
+        "School Teacher":          "1509062522246-3755977927d7",
+        "University Professor":    "1524178232363-1fb2b075b655",
+        "Educational Consultant":  "1434030216411-0b793f4b4173",
+        "Graphic Designer":        "1626785774573-4b799315345d",
+        "Content Creator":         "1598387993441-a364f854cfbd",
+        "Journalist":              "1504711434969-e33886168f5c",
+        "Musician":                "1511379938547-c1f69419868d",
+        "Film Director":           "1485846234645-a62644f84728",
+        "Interior Designer":       "1586023492125-27b2c045efd7",
+        "Marine Biologist":        "1518020382113-a7e8fc38eac9",
+        "Environmental Scientist": "1542601906897-c6e0dce2e2e6",
+        "Research Scientist":      "1507413245164-6160d8298b31",
+        "Lawyer":                  "1589391886645-d51941baf7fb",
+        "Social Worker":           "1559027615-cd4628902d4a",
+        "Pilot":                   "1436491865332-7a61a109cc05",
+        "Chef":                    "1556909114-f6e7ad7d3136",
+        "Hotel Manager":           "1566073771259-6a8506099945",
+    }
+    pid = CAREER_PHOTO_IDS.get(career_name)
+    if pid:
+        return f"https://images.unsplash.com/photo-{pid}?w={w}&h={h}&fit=crop&auto=format"
+    return f"https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w={w}&h={h}&fit=crop&auto=format"
+
+
+def get_level_image(career_name: str, level_idx: int) -> str:
+    LEVEL_PHOTO_IDS = [
+        ["1434030216411-0b793f4b4173", "1513258496099-48168024aec0", "1523240795612-9a054b0db644"],
+        ["1552664730-d307ca884978",    "1521737711867-e3b97375f902", "1460925895917-afdab827c52f"],
+        ["1507003211169-0a1dd7228f2d", "1531403009284-440f080d1e12", "1556761175-4b46a572b786"],
+    ]
+    ids  = LEVEL_PHOTO_IDS[level_idx % 3]
+    pick = abs(hash(career_name)) % 3
+    return f"https://images.unsplash.com/photo-{ids[pick]}?w=400&h=200&fit=crop&auto=format"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# LLM ROADMAP GENERATOR
+# ═══════════════════════════════════════════════════════════════════
+def get_ai_roadmap(career, age, profile):
+    if age < 14:
+        persona = "Fun and engaging Career Guide for Kids (Age 11-13)."
+        tone    = "Exciting, simple, encouraging. Use emojis. Keep language very simple."
+        stage_logic = f"""
+## Stage 1: Explorer (Age {age}-14)
+Fun tools: Scratch, Minecraft Education, Khan Academy Kids, Tynker.
+Focus on curiosity and play.
+
+## Stage 2: Skill Builder (Age 14-17)
+Join school clubs, take relevant subjects, start small projects.
+Try competitions like Science Olympiad or coding clubs.
+
+## Stage 3: Future Star (Age 18+)
+University or vocational training. Specialise in {career}."""
+        portfolio_req = "Suggest a Digital Treasure Chest — Google Drive folder with drawings, code projects, or school awards."
+
+    elif age < 18:
+        persona = "Strategic High School Career Counselor."
+        tone    = "Motivational, structured, ambitious."
+        stage_logic = f"""
+## Stage 1: Strong Foundation (Age {age}-16)
+Focus on high academic scores in relevant subjects. Build base skills.
+
+## Stage 2: Exposure and Competitions (Age 16-18)
+Join Olympiads, hackathons, internships. Build portfolio for college.
+
+## Stage 3: University Entry (Age 18+)
+Choose the right major for {career}. Prepare strong applications."""
+        portfolio_req = "Build a GitHub repo or personal website to showcase projects for college admissions."
+
+    else:
+        persona = "Senior Career Coach and Mentor."
+        tone    = "Professional, direct, practical. Use real course names and salaries."
+        stage_logic = f"""
+## Stage 1: Upskilling (Now - 1 Year)
+Close skill gaps with certifications (Coursera, Udemy, edX). Build portfolio.
+
+## Stage 2: Entry Level (1-3 Years)
+Land first {career} job. Network on LinkedIn. Learn on the job fast.
+
+## Stage 3: Growth (3+ Years)
+Specialise, lead teams, negotiate salary. Target senior {career} roles."""
+        portfolio_req = "Optimise LinkedIn profile and create a Case Study Portfolio showing real impact."
+
+    user_message = f"""
+Target Career: {career}
+User Age: {age}
+Profile: {json.dumps({k:v for k,v in profile.items() if k in ['creativity','social','work_life_balance','income_priority','cognitive_pref','academic_level','location']})}
+
+{stage_logic}
+
+### Skills to Build Now
+List 5-6 key skills age-appropriate for {career}.
+
+### Recommended Courses and Resources
+Specific platforms with course names. Age-appropriate.
+
+### Hands-on Projects (3 projects)
+Concrete, doable project ideas for {career}.
+
+### Certifications and Achievements
+Age-appropriate: school awards for kids, professional certs for adults.
+
+### Portfolio Strategy
+{portfolio_req}
+"""
+    system_instruction = f"You are {persona}. {tone} Return in clean Markdown format."
+    try:
+        return groq_complete([{"role": "user", "content": user_message}],
+                             system=system_instruction, max_tokens=2000)
+    except Exception as e:
+        return f"### Error\n\n{e}\n\nPlease try again."
+
+
+# ═══════════════════════════════════════════════════════════════════
+# APP: ROADMAP PAGE
+# ═══════════════════════════════════════════════════════════════════
+def app_roadmap():
+    st.markdown("<h2>Your Career Journey</h2>", unsafe_allow_html=True)
+    profile = st.session_state.user_profile
+    if not profile:
+        st.info("Complete your profile first.")
+        return
+
+    df           = load_career_data()
+    careers_list = sorted(df["career"].tolist())
+    age          = int(profile.get("age", 18))
+
+    if age <= 13:
+        kid_careers = ["Game Developer","Graphic Designer","Content Creator","Musician",
+                       "Architect","Environmental Scientist","Marine Biologist","Chef",
+                       "Film Director","School Teacher","Robotics Engineer"]
+        options = sorted(set(kid_careers) & set(careers_list)) + ["Other (Type your own)"]
+    elif age <= 17:
+        teen_careers = ["Software Engineer","Data Scientist","AI/ML Engineer","UX Designer",
+                        "Game Developer","Cybersecurity Analyst","Mobile Developer",
+                        "Content Creator","Graphic Designer","Architect","Journalist",
+                        "Musician","Film Director","Entrepreneur","General Physician",
+                        "Lawyer","Environmental Scientist","Marine Biologist",
+                        "Psychologist","School Teacher","Robotics Engineer","Cloud Engineer"]
+        options = sorted(set(teen_careers) & set(careers_list)) + ["Other (Type your own)"]
+    else:
+        options = careers_list + ["Other (Type your own)"]
+
+    current_career = st.session_state.get("selected_career", options[0] if options else "")
+    default_idx    = options.index(current_career) if current_career in options else len(options) - 1
+
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        selected_opt = st.selectbox("Select Career", options, index=default_idx, key="rm_select")
+        if selected_opt == "Other (Type your own)":
+            final_career = st.text_input(
+                "Enter Career Name",
+                value=st.session_state.get("custom_career_input", ""),
+                placeholder="e.g. Footballer, Quantum Physicist...",
+                key="rm_text",
+            )
+            st.session_state.custom_career_input = final_career
+        else:
+            final_career = selected_opt
+    with c2:
+        age = st.number_input("Your Age", 10, 65, age, key="rm_age")
+
+    if st.button("Generate Full Journey Plan", use_container_width=True, type="primary"):
+        if not final_career or not final_career.strip():
+            st.warning("Please enter or select a career name.")
+        else:
+            with st.spinner("AI is designing your path..."):
+                st.session_state.roadmap         = get_ai_roadmap(final_career, age, profile)
+                st.session_state.selected_career = final_career
+            st.rerun()
+
+    if not st.session_state.roadmap:
+        return
+
+    sel  = st.session_state.selected_career
+    img  = get_career_image(sel)
+    r_df = df[df["career"] == sel]
+
+    # build badge strings separately to avoid f-string nesting
+    if not r_df.empty:
+        r      = r_df.iloc[0]
+        bc     = "#ef4444" if r["burnout_risk"] >= 8 else "#f59e0b" if r["burnout_risk"] >= 6 else "#22c55e"
+        ind    = "<span class='badge badge-teal'>" + str(r['industry']) + "</span>"
+        sal    = "<span class='badge badge-yellow'>&#128176; $" + f"{int(r['avg_salary_usd']):,}" + "/yr</span>"
+        gro    = "<span class='badge badge-purple'>&#128200; " + str(r['growth_rate']) + "% growth</span>"
+        br_val = str(r['burnout_risk'])
+        br_html = (
+            "<div style='text-align:right;'>"
+            "<div style='color:var(--muted);font-size:.78rem;'>Burnout Risk</div>"
+            "<div style='font-family:Syne,sans-serif;font-size:2rem;font-weight:900;color:" + bc + ";'>" + br_val + "/10</div>"
+            "</div>"
+        )
+        avg_sal = int(r['avg_salary_usd'])
+    else:
+        r       = {}
+        ind     = "<span class='badge badge-blue'>Custom Path</span>"
+        sal     = "<span class='badge badge-yellow'>&#128176; Variable</span>"
+        gro     = "<span class='badge badge-purple'>&#128200; High Potential</span>"
+        br_html = ""
+        avg_sal = 100000
+
+    # CSS
+    st.markdown("""
+    <style>
+    .rm-hero-wrap { overflow:hidden; }
+    .rm-hero-img  { transition:transform .4s ease; width:100%; height:100%; object-fit:cover; display:block; }
+    .rm-hero-wrap:hover .rm-hero-img { transform:scale(1.05); }
+    .prog-card {
+        border:2px solid #e2e8f0; border-radius:18px; overflow:hidden;
+        background:white; box-shadow:0 4px 16px rgba(61,82,160,.07);
+        transition:transform .3s, box-shadow .3s, border-color .3s;
+        margin-bottom: 0;
+    }
+    .prog-card:hover {
+        transform:translateY(-8px);
+        box-shadow:0 18px 40px rgba(61,82,160,.2);
+        border-color:var(--secondary);
+    }
+    .prog-img { transition:transform .4s ease; width:100%; height:130px; object-fit:cover; display:block; }
+    .prog-card:hover .prog-img { transform:scale(1.06); }
+    </style>""", unsafe_allow_html=True)
+
+    # TOP CARD
+    top_html = (
+        "<div class='pf-card' style='padding:0;overflow:hidden;border-radius:20px;'>"
+        "<div style='display:flex;align-items:stretch;min-height:170px;'>"
+        "<div class='rm-hero-wrap' style='width:260px;min-width:260px;position:relative;'>"
+        "<img class='rm-hero-img' src='" + img + "' alt='" + sel + "'>"
+        "<div style='position:absolute;inset:0;background:linear-gradient(90deg,transparent 55%,white 100%);'></div>"
+        "</div>"
+        "<div style='padding:24px 28px;flex:1;display:flex;flex-direction:column;justify-content:center;'>"
+        "<div style='display:flex;justify-content:space-between;align-items:flex-start;'>"
+        "<div>"
+        "<div style='font-family:Syne,sans-serif;font-size:1.5rem;font-weight:900;color:var(--primary);margin-bottom:10px;'>" + sel + "</div>"
+        "<div style='display:flex;gap:6px;flex-wrap:wrap;'>" + ind + sal + gro + "</div>"
+        "</div>"
+        + br_html +
+        "</div>"
+        "</div>"
+        "</div>"
+        "</div>"
+    )
+    st.markdown(top_html, unsafe_allow_html=True)
+
+    # TIMELINE
+    current_age = int(profile.get("age", 18))
+    if current_age < 14:
+        stages = [
+            {"title":"Explorer",     "sub":"Age " + str(current_age), "status":"active", "icon":"🧸"},
+            {"title":"Skill Builder","sub":"Age 14-16",                "status":"future", "icon":"🧱"},
+            {"title":"Future Star",  "sub":"Age 17+",                  "status":"future", "icon":"🚀"},
+        ]
+    elif current_age < 18:
+        stages = [
+            {"title":"School Prep",  "sub":"Completed",               "status":"done",   "icon":"🏫"},
+            {"title":"Competitions", "sub":"Age " + str(current_age), "status":"active", "icon":"🏆"},
+            {"title":"University",   "sub":"Age 18+",                 "status":"future", "icon":"🎓"},
+        ]
+    else:
+        stages = [
+            {"title":"Education",   "sub":"Completed",                "status":"done",   "icon":"🎓"},
+            {"title":"Entry Level", "sub":"Current Focus",            "status":"active", "icon":"🚀"},
+            {"title":"Leadership",  "sub":"Future Goal",              "status":"future", "icon":"👑"},
+        ]
+
+    tl = "<div class='journey-container'><div class='journey-line'></div>"
+    for s in stages:
+        tl += (
+            "<div class='journey-step step-" + s['status'] + "'>"
+            "<div class='step-circle'>" + s['icon'] + "</div>"
+            "<div class='step-title'>" + s['title'] + "</div>"
+            "<div class='step-sub'>" + s['sub'] + "</div>"
+            "</div>"
+        )
+    tl += "</div>"
+    st.markdown(tl, unsafe_allow_html=True)
+
+    # ACTION PLAN
+    st.markdown("<div class='pf-card'>", unsafe_allow_html=True)
+    st.markdown("<div class='pf-card-title'>Detailed Action Plan</div>", unsafe_allow_html=True)
+
+    col_text, col_side = st.columns([4, 1])
+    with col_side:
+        side_html = (
+            "<div style='text-align:center;padding:12px 0;'>"
+            "<div style='border-radius:14px;overflow:hidden;"
+            "box-shadow:0 6px 20px rgba(61,82,160,.18);width:110px;margin:0 auto;'>"
+            "<img src='" + img + "' width='110' height='110' "
+            "style='object-fit:cover;display:block;transition:transform .35s;' "
+            "onmouseover=\"this.style.transform='scale(1.09)'\" "
+            "onmouseout=\"this.style.transform='scale(1)'\">"
+            "</div>"
+            "<div style='margin-top:9px;font-size:.75rem;font-weight:700;color:var(--primary);'>" + sel + "</div>"
+            "</div>"
+        )
+        st.markdown(side_html, unsafe_allow_html=True)
+
+    with col_text:
+        h1c, h2c, h3c, tc = "#3D52A0", "#7091E6", "#8697C4", "#334155"
+        lines    = st.session_state.roadmap.split('\n')
+        html_out = ""
+        in_list  = False
+        for line in lines:
+            s = line.strip()
+            if s.startswith("- "):
+                if not in_list:
+                    html_out += "<ul style='list-style:none;padding-left:0;'>"
+                in_list   = True
+                html_out += (
+                    "<li style='margin-bottom:8px;padding-left:20px;position:relative;"
+                    "color:" + tc + ";line-height:1.6;'>"
+                    "<span style='position:absolute;left:0;top:4px;color:" + h2c + ";'>&#9679;</span> "
+                    + s[2:] + "</li>"
+                )
             else:
-                if st.button(f"{ico}  {label}",key=f"sb_{pid}",use_container_width=True):
-                    st.session_state.app_page=pid; st.rerun()
+                if in_list:
+                    html_out += "</ul>"
+                    in_list   = False
+                if s.startswith("### "):
+                    html_out += "<h3 style='color:" + h3c + ";border-bottom:2px solid " + h3c + ";padding-bottom:5px;margin-top:25px;font-family:Syne,sans-serif;'>" + s[4:] + "</h3>"
+                elif s.startswith("## "):
+                    html_out += "<h2 style='color:" + h2c + ";border-bottom:2px solid " + h2c + ";padding-bottom:5px;margin-top:30px;font-family:Syne,sans-serif;'>" + s[3:] + "</h2>"
+                elif s.startswith("# "):
+                    html_out += "<h1 style='color:" + h1c + ";border-bottom:3px solid " + h1c + ";padding-bottom:8px;margin-top:35px;font-family:Syne,sans-serif;'>" + s[2:] + "</h1>"
+                elif s:
+                    html_out += "<p style='color:" + tc + ";line-height:1.7;margin-bottom:15px;'>" + s + "</p>"
+        if in_list:
+            html_out += "</ul>"
+        st.markdown(html_out, unsafe_allow_html=True)
 
-        h('<div style="padding:10px 14px 4px;font-size:9px;font-weight:700;letter-spacing:3.5px;text-transform:uppercase;color:rgba(147,197,253,.2);">Tools</div>')
-        for pid,ico,label in [("resume","📄","Resume Analyzer"),("chat","💬","AI Advisor"),("insights","📊","Market Insights"),("institutes","🏛️","Institute Finder"),("training","🤖","Model Training")]:
-            is_active=(ap==pid)
-            if is_active:
-                h(f"""<div style="margin:0 10px 2px;background:linear-gradient(90deg,rgba(29,78,216,.48),rgba(29,78,216,.18));
-border:1.5px solid rgba(96,165,250,.48);border-left:3px solid #60a5fa;
-border-radius:10px;padding:9px 14px;display:flex;align-items:center;gap:8px;cursor:default;">
-<span style="font-size:15px;">{ico}</span>
-<span style="font-size:13px;font-weight:800;color:white;font-family:'Plus Jakarta Sans',sans-serif;">{label}</span>
-<span style="margin-left:auto;width:7px;height:7px;border-radius:50%;background:#60a5fa;box-shadow:0 0 8px #60a5fa;"></span>
-</div>""")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # PROGRESSION CARDS
+    st.markdown("<h3 style='margin-top:30px;'>Career Progression</h3>", unsafe_allow_html=True)
+
+    if current_age < 14:
+        levels = [
+            {"label":"Beginner",     "desc":"Learning the basics — fun first!", "salary":None},
+            {"label":"Intermediate", "desc":"Building cool projects.",           "salary":None},
+            {"label":"Expert",       "desc":"Teaching and inspiring others.",    "salary":None},
+        ]
+    else:
+        levels = [
+            {"label":"Junior",    "desc":"Learning the ropes.",       "salary":int(avg_sal * 0.6)},
+            {"label":"Mid-Level", "desc":"Independent work.",         "salary":int(avg_sal)},
+            {"label":"Senior",    "desc":"Leadership. High impact.",  "salary":int(avg_sal * 1.6)},
+        ]
+
+    prog_cols = st.columns(3)
+    for i, job in enumerate(levels):
+        with prog_cols[i]:
+            card_img = get_level_image(sel, i)
+            if job["salary"]:
+                sal_html = "<div style='font-weight:800;color:#059669;font-size:1.05rem;'>$" + f"{job['salary']:,}" + "</div>"
+                focus_label = "Est. Annual Salary"
             else:
-                if st.button(f"{ico}  {label}",key=f"sb_{pid}",use_container_width=True):
-                    st.session_state.app_page=pid; st.rerun()
+                sal_html    = "<div style='font-weight:700;color:var(--primary);'>Learning Phase</div>"
+                focus_label = "Current Focus"
 
-        h('<div style="height:14px;"></div>')
-        h('<div style="padding:0 10px 16px;">')
-        h('<div style="background:rgba(220,38,38,.09);border:1.5px solid rgba(220,38,38,.22);border-radius:10px;overflow:hidden;">')
-        if st.button("🚪  Sign Out",key="logout",use_container_width=True):
-            st.session_state.logged_in=False; st.session_state.current_user=None
-            st.session_state.page="landing"; st.rerun()
-        h('</div></div>')
+            card_html = (
+                "<div class='prog-card'>"
+                "<div style='overflow:hidden;'>"
+                "<img class='prog-img' src='" + card_img + "' alt='" + job['label'] + "'>"
+                "</div>"
+                "<div style='position:relative;'>"
+                "<div style='position:absolute;top:-14px;left:16px;"
+                "background:var(--primary);color:white;"
+                "padding:3px 14px;border-radius:999px;"
+                "font-size:.72rem;font-weight:700;"
+                "box-shadow:0 2px 8px rgba(61,82,160,.3);'>"
+                + job['label'] +
+                "</div>"
+                "</div>"
+                "<div style='padding:20px 16px 16px;'>"
+                "<h4 style='margin:8px 0 6px;color:var(--primary);"
+                "font-family:Syne,sans-serif;font-size:.95rem;'>"
+                + job['label'] + " " + sel +
+                "</h4>"
+                "<div style='font-size:.8rem;color:#64748b;margin-bottom:14px;'>" + job['desc'] + "</div>"
+                "<div style='background:#f8fafc;padding:10px;border-radius:10px;'>"
+                "<div style='font-size:.7rem;color:#94a3b8;margin-bottom:3px;'>" + focus_label + "</div>"
+                + sal_html +
+                "</div>"
+                "</div>"
+                "</div>"
+            )
+            st.markdown(card_html, unsafe_allow_html=True)
+# ═══════════════════════════════════════════════════════════════════
+# APP: INSTITUTE FINDER  (FIXED — uses load_institute_data)
+# ═══════════════════════════════════════════════════════════════════
+def app_institutes():
+    st.markdown("<h2>🏫 Institute Finder</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='color:var(--muted);'>Find the best universities, schools, bootcamps & online platforms for your career path.</p>",
+                unsafe_allow_html=True)
 
-    # TOPBAR
-    page_titles={"home":"🏠 Home","profile":"📋 My Profile","matches":"🎯 Career Matches","roadmap":"🗺️ Skill Roadmap","resume":"📄 Resume Analyzer","chat":"💬 AI Advisor","insights":"📊 Market Insights","institutes":"🏛️ Institute Finder","training":"🤖 Model Training"}
-    page_icons={"home":"🏠","profile":"📋","matches":"🎯","roadmap":"🗺️","resume":"📄","chat":"💬","insights":"📊","institutes":"🏛️","training":"🤖"}
-    pg_icon=page_icons.get(ap,"🧭")
-    pg_name=page_titles.get(ap,"Dashboard").split(" ",1)[-1]
-    h(f"""<div class="topbar">
-<div style="display:flex;align-items:center;gap:10px;">
-  <div style="width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #bfdbfe;display:flex;align-items:center;justify-content:center;font-size:17px;">{pg_icon}</div>
-  <div>
-    <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:1.5px;text-transform:uppercase;font-family:'Plus Jakarta Sans',sans-serif;">PathFinder AI</div>
-    <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:800;color:#0f172a;letter-spacing:-.3px;">{pg_name}</div>
-  </div>
-</div>
-<div style="display:flex;align-items:center;gap:10px;">
-  <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:99px;padding:4px 12px;font-size:10.5px;font-weight:700;color:#059669;display:flex;align-items:center;gap:5px;">
-    <span style="width:7px;height:7px;background:#22c55e;border-radius:50%;display:inline-block;animation:blink 2s infinite;"></span> AI Active
-  </div>
-  <div style="display:flex;align-items:center;gap:8px;background:white;border:1.5px solid #bfdbfe;border-radius:99px;padding:5px 14px 5px 5px;transition:all .2s;cursor:default;"
-    onmouseover="this.style.boxShadow='0 4px 16px rgba(29,78,216,.12)';this.style.borderColor='#93c5fd'" onmouseout="this.style.boxShadow='none';this.style.borderColor='#bfdbfe'">
-    <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:white;font-family:'Plus Jakarta Sans',sans-serif;">{ini}</div>
-    <div>
-      <div style="font-size:13px;font-weight:800;color:#0f172a;line-height:1.2;">{uname.split()[0]}</div>
-      <div style="font-size:9.5px;color:#64748b;font-weight:600;">{"🌍 "+country if country else "👤 Student"}</div>
-    </div>
-  </div>
-</div></div>""")
+    profile = st.session_state.user_profile
+    if not profile:
+        st.warning("Please complete your profile first.")
+        if st.button("Go to Profile"): st.session_state.app_page="profile"; st.rerun()
+        return
 
-    h('<div style="padding:22px 26px;">')
+    df_inst = load_institute_data()
+    if df_inst.empty:
+        st.error("Institute database is empty."); return
 
+    city_col = 'city' if 'city' in df_inst.columns else 'location'
+    all_cities = sorted(df_inst[city_col].dropna().unique().tolist())
+    all_types  = sorted(df_inst['type'].dropna().unique().tolist())
 
-    # ════════════════ HOME ════════════════
-    if ap == "home":
-        h(f"""<div class="fu">
-<div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #bfdbfe;border-radius:20px;padding:24px 28px;margin-bottom:22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;position:relative;overflow:hidden;">
-  <div style="position:absolute;right:-30px;top:-30px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(96,165,250,.18),transparent 70%);pointer-events:none;"></div>
-  <div>
-    <div style="font-family:'Syne',sans-serif;font-size:clamp(22px,2.5vw,32px);font-weight:900;color:#0f172a;letter-spacing:-1px;margin-bottom:5px;">Welcome back, {uname.split()[0]}! 👋</div>
-    <div style="font-size:13.5px;color:#475569;font-weight:500;font-family:'Plus Jakarta Sans',sans-serif;">Your career intelligence command center — AI-powered, data-driven.</div>
-  </div>
-  <div style="display:flex;gap:10px;flex-wrap:wrap;">
-    <span class="tip-badge">🤖 Llama 3 Active</span>
-    <span class="tip-badge">🎯 30+ Careers</span>
-  </div>
-</div>
-</div>""")
+    career_list = []
+    if st.session_state.career_matches is not None:
+        try:
+            career_list = st.session_state.career_matches.head(5)["career"].tolist()
+        except: pass
+
+    selected_career_ctx = st.session_state.get("selected_career","")
+
+    # ── FILTERS (main area, not sidebar to avoid conflict) ─────────
+    st.markdown("<div class='pf-card'>", unsafe_allow_html=True)
+    f1,f2,f3,f4 = st.columns(4)
+    with f1:
+        default_city_idx = 0
+        if profile.get("location"):
+            loc = profile["location"].split(",")[0].strip()
+            if loc in all_cities: default_city_idx = all_cities.index(loc)
+        city = st.selectbox("📍 City", all_cities, index=default_city_idx, key="inst_city")
+    with f2:
+        type_filter = st.multiselect("🏛️ Type", all_types, default=all_types, key="inst_type")
+    with f3:
+        degree_filter = st.selectbox("🎓 Level",
+            ["Any Level","Primary School","High School","Undergraduate","Graduate","Online / Bootcamp"],
+            key="inst_degree")
+    with f4:
+        career_opts = ["All Careers"] + career_list + (
+            [selected_career_ctx] if selected_career_ctx and selected_career_ctx not in career_list else [])
+        default_career_idx = 0
+        if selected_career_ctx in career_opts: default_career_idx = career_opts.index(selected_career_ctx)
+        career_focus = st.selectbox("Career Focus", career_opts, index=default_career_idx, key="inst_career")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # ── AI STRATEGY BUTTON ─────────────────────────────────────────
+    if st.button("🤖 Get AI Strategy for My Path", use_container_width=True, type="secondary"):
+        with st.spinner(" Generating personalised strategy..."):
+            sys_p = "You are a career counselor helping a student choose the right institute. Be specific and practical."
+            user_p = (f"Student in {city}, age {profile.get('age',18)}, "
+                      f"looking for {degree_filter} education in {career_focus}. "
+                      f"Financial range: {profile.get('financial_range','$30K-$60K')}. "
+                      f"Give 3 specific actionable tips for finding the right institute.")
+            response = groq_complete([{"role":"user","content":user_p}], system=sys_p, max_tokens=400)
+        st.markdown(f"""<div class="pf-card" style="border-left:4px solid var(--primary);">
+          <div class="pf-card-title"> AI Strategy</div>
+          <div style="color:var(--text);line-height:1.7;">{response}</div>
+        </div>""", unsafe_allow_html=True)
+
+    # ── FILTERING ──────────────────────────────────────────────────
+    filtered = df_inst[df_inst[city_col] == city].copy()
+    if type_filter:
+        filtered = filtered[filtered['type'].isin(type_filter)]
+    if career_focus != "All Careers":
+        kws = career_focus.lower().split()
+        mask = filtered['career_field'].str.lower().apply(
+            lambda x: any(kw in x for kw in kws) if isinstance(x,str) else False)
+        filtered = filtered[mask]
+    if degree_filter != "Any Level":
+        level_map = {
+            "Primary School":     ["Primary School","High","Middle"],
+            "High School":        ["High School","High","Diploma","College"],
+            "Undergraduate":      ["Undergraduate","High School"],
+            "Graduate":           ["Graduate","Undergraduate"],
+            "Online / Bootcamp":  ["Undergraduate","High School","Primary School"],
+        }
+        allowed = level_map.get(degree_filter, [])
+        if allowed:
+            filtered = filtered[filtered['academic_level'].apply(
+                lambda x: any(a.lower() in str(x).lower() for a in allowed))]
+
+    st.markdown(f"### 📍 Results in **{city}** — {len(filtered)} found", unsafe_allow_html=True)
+
+    if filtered.empty:
+        st.warning("No institutes found. Try changing the city or removing some filters.")
+        return
+
+    # ── DISPLAY CARDS (2-col grid) ─────────────────────────────────
+    cols = st.columns(2)
+    for i,(_, inst) in enumerate(filtered.iterrows()):
+        with cols[i % 2]:
+            safe_seed = str(inst['name']).replace(" ","")
+            img_url = f"https://api.dicebear.com/7.x/shapes/svg?seed={safe_seed}&backgroundColor=3D52A0,7091E6,ADBBDA"
+            scholarship_badge = "<span class='badge badge-green'>🎓 Scholarship</span>" if str(inst.get('scholarship','')).lower() in ['true','yes','1'] else ""
+            fee_text = "Free" if int(inst.get('fee_max',0)) == 0 else f"${int(inst.get('fee_max',0)):,}/yr"
+            ranking = int(inst.get('ranking', 5))
+            stars = "⭐" * min(ranking, 5)
+            website = inst.get('website','#')
+
+            st.markdown(f"""
+            <div class="inst-card">
+              <div style="background:linear-gradient(135deg,#3D52A0,#7091E6);height:120px;
+                display:flex;align-items:center;justify-content:center;position:relative;">
+                <img src="{img_url}" width="80" height="80"
+                  style="border-radius:50%;border:3px solid white;background:white;">
+                <div style="position:absolute;top:10px;right:12px;background:rgba(255,255,255,.2);
+                  backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.4);
+                  border-radius:20px;padding:3px 10px;color:white;font-size:.72rem;font-weight:700;">
+                  {inst['type']}
+                </div>
+              </div>
+              <div style="padding:20px;">
+                <h3 style="margin:0 0 6px;color:var(--primary);font-family:'Syne',sans-serif;font-size:1.05rem;">
+                  {inst['name']}
+                </h3>
+                <div style="margin-bottom:10px;">
+                  <span class='badge badge-teal'>{inst.get('country','')}</span>
+                  <span class='badge badge-purple'>{inst.get('academic_level','')}</span>
+                  {scholarship_badge}
+                </div>
+                <p style="color:var(--muted);font-size:.82rem;line-height:1.5;margin-bottom:12px;">
+                  <strong>Focus:</strong> {str(inst['career_field'])[:80]}{'...' if len(str(inst['career_field']))>80 else ''}
+                </p>
+                <div style="display:flex;justify-content:space-between;align-items:center;
+                  background:#f8fafc;padding:10px 14px;border-radius:10px;">
+                  <div>
+                    <div style="font-size:.7rem;color:var(--muted);">Annual Fee</div>
+                    <div style="font-weight:800;color:var(--primary);">{fee_text}</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:.7rem;color:var(--muted);">Rating</div>
+                    <div style="font-size:.85rem;">{stars} ({ranking}/10)</div>
+                  </div>
+                  <div>
+                    <a href="https://{website}" target="_blank"
+                      style="background:var(--primary);color:white;padding:6px 14px;
+                      border-radius:8px;font-size:.75rem;font-weight:700;text-decoration:none;">
+                      Visit →
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>""", unsafe_allow_html=True)
+
+# ═══════════════════════════════════════════════════════════════════
+# APP: RESUME ANALYZER
+# ═══════════════════════════════════════════════════════════════════
+def app_resume():
+    st.markdown("<h2>📄 AI Resume Architect</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='color:var(--muted);'>Optimize your resume with AI-driven ATS scoring and persona alignment.</p>",
+                unsafe_allow_html=True)
+    profile = st.session_state.user_profile or {}
+    df = load_career_data()
+    default_career = st.session_state.get("selected_career","Auto-detect")
+    career_options = ["Auto-detect"] + df["career"].tolist()
+    if default_career not in career_options: default_career = "Auto-detect"
+
+    st.markdown("<div class='pf-card'>", unsafe_allow_html=True)
+    col1,col2,col3 = st.columns([2,2,1])
+    with col1: uploaded = st.file_uploader("Upload Resume", type=["pdf","docx","txt"], label_visibility="collapsed")
+    with col2: tc = st.selectbox("Target Career", career_options, index=career_options.index(default_career), key="res_career")
+    with col3: age = st.number_input("Age", 10, 65, int(profile.get("age",18)) if profile else 20, key="res_age")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    with st.expander("⚙️ System Status"):
+        st.success("✅ PyPDF2 ready") if HAS_PDF else st.error("Missing: pip install PyPDF2")
+        st.success("✅ docx2txt ready") if HAS_DOCX else st.error("Missing: pip install docx2txt")
+
+    analyze_btn = st.button("🔍 Run Deep Analysis", use_container_width=True, disabled=uploaded is None)
+    if analyze_btn and uploaded:
+        with st.spinner("🤖 Analyzing structure, keywords, and ATS compatibility..."):
+            text = read_resume(uploaded)
+            career = "" if tc=="Auto-detect" else tc
+            raw_analysis = analyze_resume(text, age, profile, career)
+            st.session_state.resume_analysis = {"text":text,"raw_analysis":raw_analysis,"career":career,"age":age}
+        st.rerun()
+
+    if st.session_state.resume_analysis:
+        res = st.session_state.resume_analysis
+        word_count = len(res["text"].split())
+        ats_score = min(95, 60 + (word_count//10)) if word_count>50 else 40
+        st.markdown("<br>", unsafe_allow_html=True)
         c1,c2,c3,c4 = st.columns(4)
-        for col,ico,val,lbl,c,sub in zip([c1,c2,c3,c4],
-            ["🎯","🤖","🌍","⚡"],
-            ["30+","Ready","12","Llama 3"],
-            ["Career Paths","ML Model","Industries","AI Engine"],
-            ["#1d4ed8","#7c3aed","#0891b2","#059669"],
-            ["Matching database","Random Forest","Career sectors","70B Parameters"]):
-            with col:
-                h(f"""<div class="stat-card">
-<div style="font-size:1.9rem;margin-bottom:10px;filter:drop-shadow(0 2px 8px {c}33);">{ico}</div>
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:26px;font-weight:900;color:{c};line-height:1;">{val}</div>
-<div style="font-size:12px;color:#0f172a;font-weight:700;margin-top:5px;">{lbl}</div>
-<div style="font-size:10px;color:#94a3b8;font-weight:500;margin-top:2px;">{sub}</div>
-</div>""")
+        with c1: st.metric("ATS Score", f"{ats_score}%", delta="Good Fit" if ats_score>70 else "Needs Work")
+        with c2: st.metric("Word Count", word_count, delta="Optimal" if 200<word_count<800 else "Check Length")
+        with c3: st.markdown(f"""<div style="text-align:center;"><div style="color:var(--muted);font-size:.8rem;">Target Role</div>
+          <div style="font-weight:700;color:var(--primary);font-size:1.1rem;">{res['career'] or 'General'}</div></div>""",
+          unsafe_allow_html=True)
+        with c4: st.markdown(f"""<div style="text-align:center;"><div style="color:var(--muted);font-size:.8rem;">Age Group</div>
+          <div style="font-weight:700;color:var(--primary);font-size:1.1rem;">{res['age']} yrs</div></div>""",
+          unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        tab1,tab2,tab3 = st.tabs(["📊 AI Insights","Gap Analysis","Raw Text"])
+        with tab1:
+            cl,cr = st.columns([2,1])
+            with cl:
+                st.markdown(f"""<div class='pf-card'>
+                  <div class='pf-card-title'>🤖 Detailed AI Feedback</div>
+                  <div style='line-height:1.6;color:var(--text);'>{res['raw_analysis']}</div>
+                </div>""", unsafe_allow_html=True)
+            with cr:
+                av = res["age"]
+                tip = (" **Child Focus:** Highlight fun projects, school competitions, curiosity." if av<14 else
+                       " **Teen Focus:** Emphasize academic rigor, extracurricular leadership, tech skills." if av<19 else
+                       " **Adult Focus:** Lead with impact, quantifiable results, specific technical tools.")
+                st.markdown(f"""<div class="pf-card" style="border-top:4px solid var(--primary);">
+                  <div class="pf-card-title">💡 Age Strategy</div>
+                  <p style="color:var(--muted);margin:0;font-size:.9rem;">{tip}</p>
+                </div>""", unsafe_allow_html=True)
+                st.download_button("📥 Download Report", data=res["raw_analysis"],
+                                   file_name="resume_feedback.txt", mime="text/plain", use_container_width=True)
+        with tab2:
+            st.markdown("<div class='pf-card'>", unsafe_allow_html=True)
+            st.markdown("<div class='pf-card-title'>🧩 Profile vs Resume Gap</div>", unsafe_allow_html=True)
+            profile_skills = profile.get("fav_subjects",[])
+            resume_lower = res["text"].lower()
+            if profile_skills:
+                found = [s for s in profile_skills if s.lower() in resume_lower]
+                miss  = [s for s in profile_skills if s.lower() not in resume_lower]
+                if found:
+                    st.markdown("**Found in Resume ✅**")
+                    fc = st.columns(3)
+                    for i,s in enumerate(found):
+                        with fc[i%3]: st.markdown(f"<span style='background:#dcfce7;color:#166534;padding:5px 10px;border-radius:5px;font-size:.85rem;'>✅ {s}</span>", unsafe_allow_html=True)
+                if miss:
+                    st.markdown("**Missing from Resume ❌**")
+                    mc = st.columns(3)
+                    for i,s in enumerate(miss):
+                        with mc[i%3]: st.markdown(f"<span style='background:#fee2e2;color:#991b1b;padding:5px 10px;border-radius:5px;font-size:.85rem;'>❌ {s}</span>", unsafe_allow_html=True)
+                    st.warning(" Add these missing skills to boost your ATS score!")
+                elif not miss:
+                    st.success(" All profile skills are in your resume!")
+            else:
+                st.info("Add subjects to your profile to enable gap analysis.")
+            st.markdown("</div>", unsafe_allow_html=True)
+        with tab3:
+            st.markdown("<div class='pf-card'>", unsafe_allow_html=True)
+            st.text_area("Extracted Text", res["text"], height=400, disabled=True, label_visibility="collapsed")
+            st.caption(f"Extracted {len(res['text'])} characters.")
+            st.markdown("</div>", unsafe_allow_html=True)
+    else:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.info("👆 Upload a resume above to unlock the AI dashboard.")
 
-        h('<div class="sec-hdr" style="margin-top:8px;">🚀 Quick Start</div>')
-        qs_cols = st.columns(5)
-        for col,(pid,ico,t,d,c,n) in zip(qs_cols,[
-            ("profile","📋","Build Profile","Set personality & goals","#1d4ed8","1"),
-            ("matches","🎯","View Matches","See your AI career picks","#7c3aed","2"),
-            ("roadmap","🗺️","Get Roadmap","Generate skill roadmap","#0891b2","3"),
-            ("resume","📄","Resume AI","Upload for AI feedback","#059669","4"),
-            ("insights","📊","Market Data","Salary & growth trends","#ea580c","5"),
-        ]):
-            with col:
-                h(f"""<div class="qs-card" style="border-top:4px solid {c};">
-<div style="width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,{c},{c}cc);display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-weight:900;font-size:16px;color:white;margin:0 auto 10px;box-shadow:0 4px 12px {c}44;">{n}</div>
-<div style="font-size:18px;margin-bottom:6px;">{ico}</div>
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:12.5px;font-weight:800;color:#0f172a;margin-bottom:5px;">{t}</div>
-<div style="font-size:10.5px;color:#64748b;line-height:1.6;margin-bottom:12px;">{d}</div>
-</div>""")
-                if st.button("Open →", key=f"qs_{pid}", use_container_width=True):
-                    st.session_state.app_page=pid; st.rerun()
+# ═══════════════════════════════════════════════════════════════════
+# APP: AI CHAT
+# ═══════════════════════════════════════════════════════════════════
+def app_chat():
+    st.markdown("<h2>💬 AI Career Advisor</h2>", unsafe_allow_html=True)
+    st.markdown(
+        "<p style='color:var(--muted);'>Ask anything about careers, education, skills, or your future. "
+        "Powered by Llama 3.3 70B.</p>",
+        unsafe_allow_html=True,
+    )
 
-        h('<div class="sec-hdr" style="margin-top:6px;">📊 Career Intelligence</div>')
-        col1,col2 = st.columns(2)
-        with col1:
-            h("""<div class="pf-card">
-<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-  <div style="width:32px;height:32px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;border:1.5px solid #bfdbfe;">💰</div>
-  <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:800;color:#0f172a;letter-spacing:-.3px;">Top 5 Highest-Paying Careers</div>
-</div>""")
-            for lbl,pct,val in [("Surgeon",100,"$350K"),("Doctor",57,"$200K"),("Investment Banker",51,"$180K"),("Cloud Architect",41,"$145K"),("AI/ML Engineer",39,"$135K")]:
-                h(pbar(lbl,pct,100,"#1d4ed8",val))
-            h('</div>')
-        with col2:
-            h("""<div class="pf-card">
-<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-  <div style="width:32px;height:32px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;border:1.5px solid #bfdbfe;">🏢</div>
-  <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:800;color:#0f172a;letter-spacing:-.3px;">Industries Breakdown</div>
-</div>""")
-            for lbl,pct,val,c in [("Technology",100,"10 careers","#1d4ed8"),("Healthcare",50,"5 careers","#059669"),("Finance",30,"3 careers","#d97706"),("Engineering",20,"2 careers","#7c3aed"),("Marketing",20,"2 careers","#0891b2"),("Education",20,"2 careers","#db2777")]:
-                h(pbar(lbl,pct,100,c,val))
-            h('</div>')
+    profile = st.session_state.user_profile
+    sys_p = (
+        "You are PathFinder AI, an expert career counselor and life coach. "
+        "Give specific, actionable, personalized advice. Be encouraging and data-driven. "
+        f"User profile: {json.dumps(profile) if profile else 'Not provided.'}"
+    )
 
-        h('<div class="sec-hdr">🏆 Career Spotlights</div>')
-        c1,c2,c3 = st.columns(3)
-        for col,bc,cat,title,sub,img,badge_txt in [
-            (c1,"#059669","FASTEST GROWING","🤖 AI/ML Engineer","Technology · $135K/yr","https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=120&q=80","📈 +40% growth"),
-            (c2,"#1d4ed8","LOWEST AUTO RISK","🏥 Doctor","Healthcare · $200K/yr","https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=120&q=80","🛡️ 5% risk"),
-            (c3,"#d97706","HIGHEST EARNING","⚕️ Surgeon","Healthcare · $350K/yr","https://images.unsplash.com/photo-1551190822-a9333d879b1f?w=120&q=80","💰 $350K/yr"),
+    # ── EMPTY STATE ───────────────────────────────────────────────
+    if not st.session_state.chat_history:
+        st.markdown("""
+        <div style="text-align:center;padding:40px 20px;background:white;
+          border-radius:20px;border:2px solid var(--border);margin-bottom:20px;">
+          <div style="font-size:2.8rem;margin-bottom:10px;">🧭</div>
+          <div style="font-family:Syne,sans-serif;font-size:1.15rem;font-weight:800;color:var(--primary);">
+            Ask me anything about your career journey</div>
+          <div style="color:var(--muted);font-size:.88rem;margin-top:6px;">
+            Career choices · Skills · Education paths · Salary info · Work-life balance</div>
+        </div>""", unsafe_allow_html=True)
+
+    # ── CHAT HISTORY DISPLAY ──────────────────────────────────────
+    for msg in st.session_state.chat_history:
+        if msg["role"] == "user":
+            st.markdown(
+                f"<div class='chat-user'>{msg['content']}</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"<div class='chat-ai'>{msg['content']}</div>",
+                unsafe_allow_html=True,
+            )
+
+    # ── QUICK QUESTIONS ───────────────────────────────────────────
+    quick = [
+        "What career suits a creative introvert?",
+        "How to avoid burnout?",
+        "Best tech careers 2026?",
+        "How to switch careers at 30?",
+    ]
+    qcols = st.columns(4)
+    for col, q in zip(qcols, quick):
+        with col:
+            if st.button(q, key=f"q_{q[:15]}"):
+                st.session_state.chat_history.append({"role": "user", "content": q})
+                with st.spinner("Thinking..."):
+                    resp = groq_complete(st.session_state.chat_history, system=sys_p)
+                    st.session_state.chat_history.append({"role": "assistant", "content": resp})
+                st.rerun()
+
+    # ── INPUT BOX + SEND ──────────────────────────────────────────
+    # KEY FIX: use a form so the input clears after submit,
+    # preventing the repeated-answer loop on every rerun.
+    with st.form(key="chat_form", clear_on_submit=True):
+        c1, c2 = st.columns([5, 1])
+        with c1:
+            inp = st.text_input(
+                "",
+                key="chat_inp",
+                label_visibility="collapsed",
+                placeholder="e.g. What skills should a 17-year-old learn to become a Data Scientist?",
+            )
+        with c2:
+            send = st.form_submit_button("Send")
+
+    # Only process when the form was actually submitted with non-empty text
+    if send and inp.strip():
+        user_msg = inp.strip()
+        st.session_state.chat_history.append({"role": "user", "content": user_msg})
+        with st.spinner("Thinking..."):
+            resp = groq_complete(st.session_state.chat_history, system=sys_p)
+            st.session_state.chat_history.append({"role": "assistant", "content": resp})
+        st.rerun()
+
+    # ── CLEAR BUTTON ──────────────────────────────────────────────
+    if st.session_state.chat_history:
+        if st.button("Clear Chat"):
+            st.session_state.chat_history = []
+            st.rerun()
+
+# ═══════════════════════════════════════════════════════════════════
+# APP: MARKET INSIGHTS
+# ═══════════════════════════════════════════════════════════════════
+def app_insights():
+    st.markdown("<h2>📊 Market Analysis & Insights</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='color:var(--muted);'>Explore career trends, salary benchmarks, automation risks, and demand indicators.</p>",
+                unsafe_allow_html=True)
+    df = load_career_data()
+    c1,c2,c3,c4 = st.columns(4)
+    with c1: st.metric("Avg Salary",f"${df['avg_salary_usd'].mean():,.0f}")
+    with c2: st.metric("Avg Growth Rate",f"{df['growth_rate'].mean():.1f}%")
+    with c3: st.metric("Avg Automation Risk",f"{df['automation_risk'].mean():.1f}%")
+    with c4: st.metric("High-Demand Careers",str(len(df[df['growth_rate']>=20])))
+    st.markdown("<br>", unsafe_allow_html=True)
+    c1,c2,c3 = st.columns(3)
+    with c1: inds = st.multiselect("Filter Industry",df["industry"].unique().tolist(),default=df["industry"].unique().tolist())
+    with c2: sort_by = st.selectbox("Sort by",["avg_salary_usd","growth_rate","work_life_balance","remote_possibility","burnout_risk"])
+    with c3: top_n = st.slider("Show top N",5,len(df),min(20,len(df)))
+    fdf = df[df["industry"].isin(inds)].sort_values(sort_by,ascending=False).head(top_n)
+    t1,t2,t3,t4 = st.tabs(["💰 Salary","📈 Growth & Automation","⚖️ Work-Life","🔬 Correlations"])
+    with t1:
+        c1,c2 = st.columns(2)
+        with c1:
+            fig = px.bar(fdf,x="career",y="avg_salary_usd",color="industry",
+                title=f"Salary — Top {top_n}",color_discrete_sequence=PF_COLORS)
+            fig.update_layout(**pf_layout(xaxis=dict(gridcolor="#e8eaf6",tickangle=-40,linecolor="#d0d7f0")))
+            st.plotly_chart(fig,use_container_width=True)
+        with c2:
+            fig2 = px.box(df[df["industry"].isin(inds)],x="industry",y="avg_salary_usd",
+                color="industry",title="Salary by Industry",color_discrete_sequence=PF_COLORS)
+            fig2.update_layout(**pf_layout(showlegend=False,xaxis=dict(gridcolor="#e8eaf6",tickangle=-30,linecolor="#d0d7f0")))
+            st.plotly_chart(fig2,use_container_width=True)
+        c1,c2 = st.columns(2)
+        with c1:
+            st.markdown("<div class='pf-card'><div class='pf-card-title'>🏆 Top 5 Highest Paid</div>",unsafe_allow_html=True)
+            for _,row in df.nlargest(5,"avg_salary_usd").iterrows():
+                w=(row["avg_salary_usd"]/df["avg_salary_usd"].max())*100
+                st.markdown(f"""<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);">
+                  <div style="min-width:150px;font-size:.85rem;font-weight:600;">{row['career']}</div>
+                  <div style="flex:1;background:#e8eaf6;border-radius:999px;height:7px;">
+                    <div style="width:{w:.0f}%;height:7px;border-radius:999px;background:linear-gradient(90deg,#3D52A0,#7091E6);"></div></div>
+                  <div style="color:var(--primary);font-family:Syne,sans-serif;font-weight:800;min-width:80px;text-align:right;">${row['avg_salary_usd']:,}</div>
+                </div>""",unsafe_allow_html=True)
+            st.markdown("</div>",unsafe_allow_html=True)
+        with c2:
+            st.markdown("<div class='pf-card'><div class='pf-card-title'>📚 Entry-Level Friendly</div>",unsafe_allow_html=True)
+            for _,row in df.nsmallest(5,"avg_salary_usd").iterrows():
+                w=(row["avg_salary_usd"]/df["avg_salary_usd"].max())*100
+                st.markdown(f"""<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);">
+                  <div style="min-width:150px;font-size:.85rem;font-weight:600;">{row['career']}</div>
+                  <div style="flex:1;background:#e8eaf6;border-radius:999px;height:7px;">
+                    <div style="width:{w:.0f}%;height:7px;border-radius:999px;background:linear-gradient(90deg,#22c55e,#86efac);"></div></div>
+                  <div style="color:#16a34a;font-family:Syne,sans-serif;font-weight:800;min-width:80px;text-align:right;">${row['avg_salary_usd']:,}</div>
+                </div>""",unsafe_allow_html=True)
+            st.markdown("</div>",unsafe_allow_html=True)
+    with t2:
+        c1,c2 = st.columns(2)
+        with c1:
+            fig3=px.scatter(df[df["industry"].isin(inds)],x="growth_rate",y="automation_risk",
+                size="avg_salary_usd",color="industry",hover_name="career",
+                title="Growth vs Automation Risk",color_discrete_sequence=PF_COLORS)
+            fig3.update_layout(**pf_layout(xaxis=dict(gridcolor="#e8eaf6",title="Growth Rate (%)",linecolor="#d0d7f0"),
+                yaxis=dict(gridcolor="#e8eaf6",title="Automation Risk (%)",linecolor="#d0d7f0")))
+            st.plotly_chart(fig3,use_container_width=True)
+        with c2:
+            fig4=px.bar(fdf.sort_values("growth_rate",ascending=False).head(15),
+                x="growth_rate",y="career",orientation="h",color="growth_rate",
+                color_continuous_scale=[[0,"#EDE8F5"],[1,"#3D52A0"]],title="Top Growing Careers")
+            fig4.update_layout(**pf_layout(coloraxis_showscale=False))
+            st.plotly_chart(fig4,use_container_width=True)
+        for cat,color,fn in [
+            ("🟢 High Demand","#22c55e",lambda r:r["growth_rate"]>=20 and r["automation_risk"]<30),
+            ("🟡 Medium Demand","#f59e0b",lambda r:r["growth_rate"]>=10 and r["automation_risk"]<50),
+            ("🔴 Automation Risk","#ef4444",lambda r:r["automation_risk"]>=40),
         ]:
-            with col:
-                h(f"""<div class="pf-card" style="border-top:4px solid {bc};padding-top:18px;">
-<div style="display:inline-flex;align-items:center;gap:5px;background:{bc}15;border:1.5px solid {bc}30;border-radius:99px;padding:3px 10px;font-size:9.5px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:{bc};margin-bottom:12px;">{cat}</div>
-<div style="display:flex;align-items:center;gap:13px;">
-<div style="position:relative;flex-shrink:0;">
-  <img src="{img}" style="width:56px;height:56px;border-radius:14px;object-fit:cover;border:2px solid #e0efff;transition:transform .3s,box-shadow .3s;" onmouseover="this.style.transform='scale(1.08)';this.style.boxShadow='0 8px 24px rgba(0,0,0,.15)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none'">
-</div>
-<div style="flex:1;">
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:900;color:#0f172a;margin-bottom:5px;">{title}</div>
-<div style="font-size:11.5px;color:#64748b;margin-bottom:6px;">{sub}</div>
-<span style="background:{bc}15;border:1.5px solid {bc}35;border-radius:99px;padding:3px 10px;font-size:10.5px;font-weight:700;color:{bc};">{badge_txt}</span>
-</div></div></div>""")
-
-    # ════════════════ PROFILE ════════════════
-    elif ap == "profile":
-        h(f"""<div class="fu">
-<div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #bfdbfe;border-radius:20px;padding:22px 28px;margin-bottom:22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-  <div style="width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,#1d4ed8,#60a5fa);display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 6px 20px rgba(29,78,216,.35);flex-shrink:0;">📋</div>
-  <div>
-    <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:900;color:#0f172a;letter-spacing:-.8px;">My Profile</div>
-    <div style="font-size:13px;color:#475569;font-weight:500;margin-top:3px;font-family:'Plus Jakarta Sans',sans-serif;">The more detail you share, the more accurate your career matches will be.</div>
-  </div>
-</div></div>""")
-        t1,t2,t3,t4 = st.tabs(["👤 Basic Information","🧠 Personality","🌟 Lifestyle Priorities","🔭 Long-Term Vision"])
-        with t1:
-            h('<div class="pf-card">')
-            c1,c2=st.columns(2)
-            with c1:
-                nm=st.text_input("Full Name",value=p.get("name",""),placeholder="Your full name")
-                city=st.text_input("City & Country",value=p.get("city",""),placeholder="e.g. Karachi, Pakistan")
-                inc=st.selectbox("Target Income Range",["Select range","Below $30K/yr","$30K–$60K/yr","$60K–$100K/yr","$100K–$150K/yr","$150K+/yr"])
-            with c2:
-                age=st.number_input("Age",min_value=10,max_value=65,value=int(p.get("age",18)))
-                edu=st.selectbox("Academic Level",["Select level","High School","Undergraduate","Graduate","PhD","Professional Degree"])
-                hobbies=st.text_input("Hobbies & Interests",value=p.get("hobbies",""),placeholder="e.g. coding, design, reading, AI")
-            h('</div>')
-        with t2:
-            h('<div class="pf-card">')
-            c1,c2=st.columns(2)
-            with c1:
-                energy=st.selectbox("Energy Style",["Select style","Strong Introvert","Introvert","Ambivert","Extrovert","Strong Extrovert"])
-                thinking=st.selectbox("Thinking Style",["Select style","Analytical","Creative","Social","Practical","Mixed"])
-            with c2:
-                risk_sel=st.selectbox("Risk Tolerance",["Select level","Very Low","Low","Medium","High","Very High"])
-                leadership=st.selectbox("Leadership Preference",["Select preference","Prefer to Follow","Sometimes Lead","Often Lead","Always Lead"])
-            h('<div style="margin-top:16px;"></div>')
-            c1,c2,c3=st.columns(3)
-            with c1:
-                cr=st.slider("Creativity Drive",1,10,int(p.get("creativity",7)))
-                h(f'<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:15px;font-weight:900;color:#1d4ed8;margin-bottom:4px;">{cr}/10</div>')
-            with c2:
-                so=st.slider("Social Interaction",1,10,int(p.get("social",5)))
-                h(f'<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:15px;font-weight:900;color:#1d4ed8;margin-bottom:4px;">{so}/10</div>')
-            with c3:
-                ri=st.slider("Risk Comfort",1,10,int(p.get("risk",5)))
-                h(f'<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:15px;font-weight:900;color:#1d4ed8;margin-bottom:4px;">{ri}/10</div>')
-            h('</div>')
-        with t3:
-            h('<div class="pf-card">')
-            c1,c2,c3=st.columns(3)
-            with c1:
-                wlb=st.slider("Work-Life Balance",1,10,int(p.get("wlb",7))); h(f'<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:900;color:#1d4ed8;margin-bottom:8px;">{wlb}/10</div>')
-                income_p=st.slider("Income Priority",1,10,int(p.get("income",7))); h(f'<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:900;color:#1d4ed8;margin-bottom:4px;">{income_p}/10</div>')
-            with c2:
-                remote=st.slider("Remote Preference",1,10,int(p.get("remote",7))); h(f'<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:900;color:#1d4ed8;margin-bottom:8px;">{remote}/10</div>')
-                travel=st.slider("Travel Appetite",1,10,int(p.get("travel",5))); h(f'<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:900;color:#1d4ed8;margin-bottom:4px;">{travel}/10</div>')
-            with c3:
-                impact=st.slider("Social Impact Drive",1,10,int(p.get("impact",6))); h(f'<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:900;color:#1d4ed8;margin-bottom:8px;">{impact}/10</div>')
-                family=st.slider("Family Time Priority",1,10,int(p.get("family",7))); h(f'<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:900;color:#1d4ed8;margin-bottom:4px;">{family}/10</div>')
-            h('</div>')
-        with t4:
-            h('<div class="pf-card">')
-            vision=st.text_area("Where do you see yourself in 5 years?",value=p.get("vision",""),placeholder="Describe your ideal professional future in detail...",height=90)
-            ideal=st.text_area("What does your ideal lifestyle look like?",value=p.get("ideal",""),placeholder="Freedom, stability, creativity, impact — describe what matters most...",height=80)
-            cur_skills=st.text_area("Your Current Skills & Experience",value=p.get("cur_skills",""),placeholder="List your current skills, tools, languages, and experience...",height=80)
-            h('</div>')
-        # ── Profile completion checker ──
-        _tab1_ok = bool(nm and city and inc != "Select range" and edu != "Select level" and hobbies)
-        _tab2_ok = bool(energy != "Select style" and thinking != "Select style" and risk_sel != "Select level")
-        _tab3_ok = True  # sliders always have values
-        _tab4_ok = bool(vision and ideal)
-        _tabs_done = [_tab1_ok, _tab2_ok, _tab3_ok, _tab4_ok]
-        _tabs_labels = ["👤 Basic Info","🧠 Personality","🌟 Lifestyle","🔭 Vision"]
-        _done_count = sum(_tabs_done)
-
-        h(f"""<div style="background:white;border:1.5px solid #bfdbfe;border-radius:16px;padding:18px 22px;margin:18px 0;">
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:800;color:#0f172a;margin-bottom:12px;">
-  Profile Completion — Complete all 4 sections to unlock Career Matches
-</div>
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;">""")
-        for ok, lbl in zip(_tabs_done, _tabs_labels):
-            bg = "#f0fdf4" if ok else "#fef2f2"
-            br = "#bbf7d0" if ok else "#fecaca"
-            ic = "✅" if ok else "⭕"
-            tc = "#059669" if ok else "#dc2626"
-            h(f'<div style="display:flex;align-items:center;gap:7px;padding:9px 12px;border-radius:10px;background:{bg};border:1.5px solid {br};"><span style="font-size:16px;">{ic}</span><span style="font-size:11.5px;font-weight:700;color:{tc};font-family:\'Plus Jakarta Sans\',sans-serif;">{lbl}</span></div>')
-        h(f"""</div>
-<div style="height:8px;background:#f1f5f9;border-radius:99px;overflow:hidden;">
-  <div style="width:{_done_count*25}%;height:8px;border-radius:99px;background:linear-gradient(90deg,#1d4ed8,#60a5fa);"></div>
-</div>
-<div style="font-size:11px;color:#64748b;margin-top:6px;font-family:'Plus Jakarta Sans',sans-serif;">
-  {_done_count}/4 sections complete {"— Ready to match! 🎉" if _done_count==4 else "— fill remaining sections to unlock matches"}
-</div></div>""")
-
-        if _done_count < 4:
-            _missing = [lbl for ok, lbl in zip(_tabs_done, _tabs_labels) if not ok]
-            st.warning(f"⚠️ Please complete: **{', '.join(_missing)}**")
-        else:
-            if st.button("💾 Save Profile & Generate Career Matches →", use_container_width=True):
-                st.session_state.profile.update({"name":nm,"age":age,"city":city,"edu":edu,"hobbies":hobbies,"inc":inc,"creativity":cr,"social":so,"risk":ri,"energy":energy,"thinking":thinking,"wlb":wlb,"income":income_p,"remote":remote,"travel":travel,"impact":impact,"family":family,"vision":vision,"ideal":ideal,"cur_skills":cur_skills})
-                st.session_state.matches=match_careers(st.session_state.profile)
-                st.success("✅ Profile saved! Redirecting to matches...")
-                st.session_state.app_page="matches"; st.rerun()
-
-    # ════════════════ CAREER MATCHES ════════════════
-    elif ap == "matches":
-        h('''<div class="fu"><div style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border:1.5px solid #ddd6fe;border-radius:20px;padding:22px 28px;margin-bottom:22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;"><div style="width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,#7c3aed,#a855f7);display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 6px 20px rgba(124,58,237,.35);flex-shrink:0;">🎯</div><div><div style="font-family:\'Syne\',sans-serif;font-size:24px;font-weight:900;color:#0f172a;letter-spacing:-.8px;">Career Matches</div><div style="font-size:13px;color:#475569;font-weight:500;margin-top:3px;font-family:\'Plus Jakarta Sans\',sans-serif;">AI-powered compatibility scores based on your personality & market data</div></div></div></div>''')
-        if not st.session_state.matches: st.session_state.matches=match_careers(st.session_state.profile)
-        matches=st.session_state.matches
-        cr_v=p.get("creativity",5); so_v=p.get("social",5)
-        if cr_v>=7 and so_v<=5: persona,pdesc="High-Creative Analyst","You thrive blending logic and creativity. Independent but presentation-strong — UX Design, AI Engineering, or Game Development suit you best."
-        elif cr_v>=7 and so_v>=7: persona,pdesc="Creative Communicator","You can both create and inspire. Product Management, Marketing Strategy, or UX Research are your natural home."
-        elif cr_v<=5 and so_v>=7: persona,pdesc="Analytical People Champion","Structured work with frequent human interaction — Healthcare, HR, Education, or Consulting."
-        else: persona,pdesc="Systematic Problem Solver","Detail-oriented and precise. Engineering, Data Science, Finance, and Operations are where you thrive."
-
-        h(f"""<div style="background:linear-gradient(135deg,#eff6ff,#f0f7ff);border:1.5px solid #bfdbfe;border-left:4px solid #1d4ed8;border-radius:16px;padding:18px 22px;margin-bottom:22px;display:flex;gap:14px;align-items:flex-start;">
-<div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#1d4ed8,#60a5fa);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🧠</div>
-<div>
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:800;color:#1d4ed8;margin-bottom:5px;">Your Persona: {persona}</div>
-<div style="font-size:13px;color:#64748b;line-height:1.78;">{pdesc}</div>
-</div></div>""")
-
-        col_l,col_r = st.columns([3,2])
-        with col_l:
-            h('<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:16px;font-weight:800;color:#0f172a;margin-bottom:15px;letter-spacing:-.3px;">🏆 Top Career Matches</div>')
-            for rank,(career,score) in enumerate(matches[:5],1):
-                b_cls="green" if career["burnout"]<=4 else "amber" if career["burnout"]<=6 else "red"
-                b_lbl="✅ Low Burnout" if career["burnout"]<=4 else "⚠️ Med Burnout" if career["burnout"]<=6 else "🔴 High Burnout"
-                s_c=["#1d4ed8","#7c3aed","#0891b2","#059669","#d97706"][rank-1]
-                top="gold-pick" if rank==1 else ""
-                h(f"""<div class="match-card {top}">
-<div style="position:absolute;top:14px;right:16px;font-family:'Plus Jakarta Sans',sans-serif;font-size:44px;font-weight:900;color:#0f172a;opacity:.05;line-height:1;pointer-events:none;">#{rank}</div>
-<div style="display:flex;gap:14px;margin-bottom:13px;align-items:flex-start;">
-<img src="{career['img']}" style="width:58px;height:58px;border-radius:13px;object-fit:cover;border:1.5px solid #bfdbfe;flex-shrink:0;transition:transform .25s;" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
-<div style="flex:1;">
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:18px;font-weight:900;color:#0f172a;margin-bottom:8px;letter-spacing:-.3px;transition:color .2s;cursor:default;" onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#0f172a'">{career['icon']} {career['title']}</div>
-<div>{badge("🏢 "+career['industry'],"teal")}{badge(b_lbl,b_cls)}{badge("💰 $"+str(career['salary']//1000)+"K/yr","amber")}{badge("📈 "+str(career['growth'])+"% growth","violet")}</div>
-</div></div>
-<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-<div style="flex:1;height:8px;background:#eff6ff;border-radius:99px;overflow:hidden;">
-<div style="width:{score}%;height:8px;border-radius:99px;background:linear-gradient(90deg,{s_c},{s_c}aa);"></div></div>
-<span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:22px;font-weight:900;color:{s_c};min-width:58px;">{score}%</span></div>
-<div style="margin-bottom:11px;">{''.join(chip(s) for s in career['skills'])}</div>
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:11px;">
-<div style="background:#f8faff;border-radius:9px;padding:9px;text-align:center;border:1.5px solid #e0efff;transition:border-color .2s;" onmouseover="this.style.borderColor='#1d4ed8'" onmouseout="this.style.borderColor='#e0efff'"><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:900;color:#1d4ed8;">{career['wlb']}/10</div><div style="font-size:10px;color:#64748b;font-weight:600;">Work-Life</div></div>
-<div style="background:#f8faff;border-radius:9px;padding:9px;text-align:center;border:1.5px solid #e0efff;transition:border-color .2s;" onmouseover="this.style.borderColor='#059669'" onmouseout="this.style.borderColor='#e0efff'"><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:900;color:#059669;">{career['remote']}/10</div><div style="font-size:10px;color:#64748b;font-weight:600;">Remote</div></div>
-<div style="background:#f8faff;border-radius:9px;padding:9px;text-align:center;border:1.5px solid #e0efff;transition:border-color .2s;" onmouseover="this.style.borderColor='#dc2626'" onmouseout="this.style.borderColor='#e0efff'"><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:900;color:#dc2626;">{career['automation']}%</div><div style="font-size:10px;color:#64748b;font-weight:600;">Auto Risk</div></div>
-</div>
-<div style="font-size:11.5px;color:#64748b;margin-bottom:12px;font-weight:500;">🎓 {career['edu']}</div>
-</div>""")
-                mc1,mc2,mc3=st.columns(3)
-                with mc1:
-                    if st.button("🗺️ Roadmap",key=f"rm_{rank}",use_container_width=True): st.session_state.sel_career=career["title"];st.session_state.app_page="roadmap";st.rerun()
-                with mc2:
-                    if st.button("💬 Ask AI",key=f"ai_{rank}",use_container_width=True): st.session_state.app_page="chat";st.rerun()
-                with mc3:
-                    if st.button("🏛️ Institutes",key=f"ins_{rank}",use_container_width=True): st.session_state.app_page="institutes";st.rerun()
-
-        with col_r:
-            h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:13px;letter-spacing:-.3px;">🤖 ML Rankings</div>')
-            colors8=["#1d4ed8","#7c3aed","#0891b2","#059669","#d97706","#dc2626","#0d9488","#a5b4fc"]
-            for rank,(career,score) in enumerate(matches[:8],1):
-                sc=colors8[rank-1]
-                h(f"""<div style="display:flex;align-items:center;gap:9px;margin-bottom:10px;transition:transform .2s;" onmouseover="this.style.transform='translateX(4px)'" onmouseout="this.style.transform='translateX(0)'">
-<span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:900;color:{sc};width:22px;">#{rank}</span>
-<span style="font-size:14px;">{career['icon']}</span>
-<div style="flex:1;"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;"><span style="font-weight:600;color:#0f172a;">{career['title']}</span><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:900;color:{sc};">{score}%</span></div>
-<div style="height:4px;background:#eff6ff;border-radius:99px;overflow:hidden;"><div style="width:{score}%;height:4px;background:{sc};border-radius:99px;"></div></div></div></div>""")
-            h('</div>')
-            h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:11px;letter-spacing:-.3px;">💡 Smart Tip</div>')
-            h(f'<div style="font-size:13px;color:#64748b;line-height:1.82;font-weight:500;">Your <strong style="color:#1d4ed8;">#1 match</strong> is <strong style="color:#1d4ed8;">{matches[0][0]["title"]}</strong> at {matches[0][1]}% compatibility. Start building skills today with a personalized roadmap!</div>')
-            if st.button("🗺️ Get My Roadmap →",use_container_width=True,key="rm_tip"): st.session_state.sel_career=matches[0][0]["title"];st.session_state.app_page="roadmap";st.rerun()
-            h('</div>')
-
-    # ════════════════ ROADMAP ════════════════
-    elif ap == "roadmap":
-        h('<div class="fu"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:28px;font-weight:900;color:#0f172a;letter-spacing:-1.2px;margin-bottom:3px;transition:color .2s;cursor:default;" onmouseover="this.style.color=\'#1d4ed8\'" onmouseout="this.style.color=\'#0f172a\'">Skill Roadmap</div><div style="font-size:13.5px;color:#64748b;margin-bottom:22px;font-weight:500;">Your AI-generated career development plan — education path and job opportunities.</div></div>')
-        career_titles=[c["title"] for c in CAREERS]
-        sel_idx=career_titles.index(st.session_state.sel_career) if st.session_state.sel_career in career_titles else 0
-        col1,col2,col3=st.columns([2,1,1])
-        with col1: sel=st.selectbox("Select Career",career_titles,index=sel_idx)
-        with col2: age_v=st.number_input("Your Age",min_value=10,max_value=65,value=int(p.get("age",18)))
-        with col3: rm_country=st.selectbox("Your Country",["Select country","Pakistan","India","United States","United Kingdom","UAE","Saudi Arabia","Canada","Australia","Other"])
-        st.session_state.sel_career=sel
-        career_obj=next((c for c in CAREERS if c["title"]==sel),CAREERS[0])
-
-        h(f"""<div class="pf-card" style="border-left:4px solid #1d4ed8;margin-bottom:18px;">
-<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:space-between;">
-<div style="display:flex;gap:14px;align-items:center;">
-<img src="{career_obj['img']}" style="width:64px;height:64px;border-radius:14px;object-fit:cover;border:1.5px solid #bfdbfe;transition:transform .25s;" onmouseover="this.style.transform='scale(1.06)'" onmouseout="this.style.transform='scale(1)'">
-<div>
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:18px;font-weight:900;color:#0f172a;margin-bottom:8px;letter-spacing:-.3px;">{career_obj['icon']} {career_obj['title']}</div>
-<div>{badge("🏢 "+career_obj['industry'],"teal")}{badge("💰 $"+str(career_obj['salary']//1000)+"K/yr","amber")}{badge("📈 "+str(career_obj['growth'])+"% growth","violet")}{badge("🏠 Remote "+str(career_obj['remote'])+"/10","blue")}</div>
-<div style="margin-top:8px;">{''.join(chip(s) for s in career_obj['skills'])}</div>
-</div></div>
-<div style="text-align:center;background:#f8faff;border-radius:13px;padding:14px 20px;border:1.5px solid #bfdbfe;">
-<div style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:3px;">BURNOUT RISK</div>
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:30px;font-weight:900;color:{"#059669" if career_obj['burnout']<=4 else "#d97706" if career_obj['burnout']<=6 else "#dc2626"};">{career_obj['burnout']}/10</div>
-</div></div></div>""")
-
-        # ── Roadmap Mode Toggle ──
-        if "roadmap_mode" not in st.session_state: st.session_state.roadmap_mode = "education"
-        rm_c1, rm_c2, rm_c3 = st.columns([1,1,3])
-        with rm_c1:
-            if st.button("🎓 Education Path", use_container_width=True, key="rm_edu_btn"):
-                st.session_state.roadmap_mode = "education"; st.rerun()
-        with rm_c2:
-            if st.button("💼 Job Opportunities", use_container_width=True, key="rm_job_btn"):
-                st.session_state.roadmap_mode = "jobs"; st.rerun()
-
-        rm_mode = st.session_state.roadmap_mode
-
-        if rm_mode == "education":
-            # ── EDUCATION PATH (default) ──
-            h(f"""<div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #bfdbfe;
-  border-radius:16px;padding:20px 24px;margin:10px 0 18px;">
-<div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:900;color:#1d4ed8;margin-bottom:6px;">
-  🎓 Education Path for {sel}
-</div>
-<div style="font-size:13px;color:#475569;font-family:'Plus Jakarta Sans',sans-serif;">
-  Required degree: <strong style="color:#0f172a;">{career_obj['edu']}</strong>
-</div>
-</div>""")
-
-            # Age-based education phases
-            if age_v <= 14:
-                phases=[
-                    ("🌱","Age 11–14","Foundation","Explore basics — coding tutorials (Scratch, Python), math olympiads, science clubs, and online courses on Coursera Junior. Focus on: curiosity > specialization.","#1d4ed8"),
-                    ("📚","Age 15–17","Discovery","Take electives in your area. Start Khan Academy, Coursera free courses. Enter competitions, build small projects. Identify if you love the field.","#7c3aed"),
-                    ("🔥","Age 18+","University Entry","Choose the right bachelor's degree aligned with "+career_obj['edu']+". Aim for scholarships. Start competitive coding/design portfolios.","#0891b2"),
-                    ("🚀","University","Degree Phase","Core coursework + internships. Build your portfolio. Target top companies early. Complete "+", ".join(career_obj['skills'][:3])+" skills.","#059669"),
-                    ("🏆","Post-Grad","Career Launch","First job, certifications, freelance projects. Target $"+str(career_obj['salary']//2000)+"K–$"+str(career_obj['salary']//1000)+"K entry-level.","#d97706"),
-                ]
-            elif age_v <= 20:
-                phases=[
-                    ("🌱","Now","Choose Your Degree","Enroll in: "+career_obj['edu']+". Research top universities in your country for this field. Apply to scholarships.","#1d4ed8"),
-                    ("📚","Year 1–2","Core Fundamentals","Complete core subjects. Build small projects. Join university clubs related to "+sel+". Start Coursera/edX side courses.","#7c3aed"),
-                    ("🔥","Year 2–3","Skill Building","Deepen: "+", ".join(career_obj['skills'][:3])+". Apply for internships. Build a professional portfolio on GitHub/Behance/LinkedIn.","#0891b2"),
-                    ("🚀","Year 3–4","Specialization","Pick a niche within "+sel+". Complete advanced certifications. Target internships at major companies. Network actively.","#059669"),
-                    ("🏆","Graduation","Career Launch","Graduate, apply for junior roles. Expected starting salary: $"+str(career_obj['salary']//2000)+"K–$"+str(career_obj['salary']//1000)+"K. Get certified.","#d97706"),
-                ]
-            elif age_v <= 30:
-                phases=[
-                    ("🌱","Now","Gap Assessment","Identify skill gaps for "+sel+". You may need: "+career_obj['edu']+". Consider evening/online programs if already working.","#1d4ed8"),
-                    ("📚","0–6 Months","Rapid Upskilling","Complete 2–3 intensive Coursera/Udemy courses on: "+", ".join(career_obj['skills'][:3])+". Build 2 portfolio projects immediately.","#7c3aed"),
-                    ("🔥","6–18 Months","Certification","Earn industry-recognized certifications. Start freelancing or side projects. Build your LinkedIn to attract recruiters.","#0891b2"),
-                    ("🚀","1–3 Years","Career Pivot","Land a junior/mid role. Network at events. Build reputation. Target $"+str(career_obj['salary']//1200)+"K–$"+str(career_obj['salary']//1000)+"K.","#059669"),
-                    ("🏆","3–5 Years","Senior Level","Senior role, team lead, or entrepreneur. Target $"+str(career_obj['salary']//1000)+"K–$"+str(int(career_obj['salary']*1.4//1000))+"K+.","#d97706"),
-                ]
-            else:
-                phases=[
-                    ("🌱","Now","Career Transition","At your experience level, focus on transferable skills. Identify what from your background applies to "+sel+".","#1d4ed8"),
-                    ("📚","0–3 Months","Fast Certification","Complete accelerated boot camps and certifications in: "+", ".join(career_obj['skills'][:3])+". Use LinkedIn Learning + Udemy.","#7c3aed"),
-                    ("🔥","3–9 Months","Portfolio Build","Create 3 strong portfolio projects. Contribute to open source or freelance. Build domain credibility fast.","#0891b2"),
-                    ("🚀","9–18 Months","Job Search","Apply for mid/senior roles leveraging your prior experience. Target $"+str(career_obj['salary']//1000)+"K–$"+str(int(career_obj['salary']*1.3//1000))+"K.","#059669"),
-                    ("🏆","2+ Years","Leadership","Leverage experience for leadership or consulting roles. You have the seniority advantage. Target $"+str(int(career_obj['salary']*1.4//1000))+"K+.","#d97706"),
-                ]
-
-            for ico,ph,title,desc,c in phases:
-                h(f"""<div style="display:flex;gap:13px;margin-bottom:4px;">
-<div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
-<div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,{c},{c}bb);display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 4px 14px {c}44;transition:transform .25s;" onmouseover="this.style.transform='scale(1.12)'" onmouseout="this.style.transform='scale(1)'">{ico}</div>
-<div style="width:2px;flex:1;min-height:14px;background:linear-gradient(to bottom,{c}44,transparent);margin:4px 0;"></div>
-</div>
-<div class="tl-body">
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:10.5px;font-weight:800;color:{c};margin-bottom:3px;">{ph}</div>
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:5px;">{title}</div>
-<div style="font-size:12.5px;color:#64748b;line-height:1.82;font-weight:500;">{desc}</div>
-</div></div>""")
-
-            if st.button("🚀 Generate AI Roadmap with Groq Llama 3", use_container_width=True):
-                with st.spinner("Generating your personalized roadmap..."):
-                    sys_p=f"You are PathFinder AI. Generate a detailed EDUCATION & CAREER roadmap for a {age_v}-year-old from {rm_country if rm_country!='Select country' else 'an international location'} who wants to become a {sel}.\n\nFormat in phases with education focus:\n🌱 PHASE 1 — FOUNDATION (Now – 6 months)\n📚 PHASE 2 — EDUCATION PATH (6 months – 2 years)\n🔥 PHASE 3 — SPECIALIZATION (2–3 years)\n🚀 PHASE 4 — CAREER LAUNCH (3–5 years)\n🏆 PHASE 5 — GROWTH & MASTERY (5+ years)\n\nFor each phase: required education, courses/resources, certifications, key milestones, salary expectations. Be practical and age-specific."
-                    st.session_state.roadmap_txt=ai_call([{"role":"user","content":f"Create education roadmap for {sel}, age {age_v}, from {rm_country}"}],sys_p,1200)
-
-            if st.session_state.roadmap_txt:
-                h('<div class="pf-card fu"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:15px;font-weight:800;color:#0f172a;margin-bottom:14px;">🗺️ Your AI-Generated Education Roadmap</div>')
-                h(f'<div style="font-size:13.5px;line-height:1.95;color:#1e293b;white-space:pre-wrap;font-family:\'Plus Jakarta Sans\',sans-serif;">{st.session_state.roadmap_txt}</div>')
-                h('</div>')
-
-        else:
-            # ── JOB OPPORTUNITIES VIEW ──
-            h(f'''<div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #bbf7d0;
-  border-radius:16px;padding:20px 24px;margin:10px 0 18px;">
-<div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:900;color:#059669;margin-bottom:6px;">
-  ➖ Job Opportunities & Freelancing for {sel}
-</div>
-<div style="font-size:13px;color:#475569;font-family:'Plus Jakarta Sans',sans-serif;">
-  Jobs, freelancing, Upwork gigs, remote work, and career platforms for a <strong style="color:#0f172a;">{sel}</strong>.
-</div>
-</div>''')
-
-            # Job roles
-            job_roles_map = {
-                "Software Engineer":["Junior Developer","Backend Engineer","Full-Stack Developer","Mobile App Developer","Software Architect","Tech Lead","CTO"],
-                "Data Scientist":["Data Analyst","ML Engineer","Business Intelligence Analyst","Research Scientist","AI Researcher","Data Science Manager"],
-                "UX Designer":["UI Designer","Product Designer","UX Researcher","Interaction Designer","Design Lead","Head of Design"],
-                "AI/ML Engineer":["ML Engineer","Deep Learning Engineer","NLP Engineer","Computer Vision Engineer","AI Research Scientist","AI Lead"],
-                "Graphic Designer":["Brand Designer","Freelance Illustrator","Social Media Designer","Logo Designer","Creative Director","Art Director"],
-                "Marketing Manager":["SEO Specialist","Content Marketer","Digital Marketer","Brand Strategist","Growth Hacker","CMO"],
-            }
-            roles = job_roles_map.get(sel, [
-                f"Junior {sel}", f"Mid-Level {sel}", f"Senior {sel}",
-                f"{sel} Specialist", f"Lead {sel}", f"{sel} Manager", f"Head of {career_obj['industry']}"
-            ])
-            h('<div style="font-family:''Plus Jakarta Sans'',sans-serif;font-size:15px;font-weight:800;color:#0f172a;margin-bottom:14px;">🏆 Roles You Can Apply For</div>')
-            job_cols = st.columns(3)
-            for i, role in enumerate(roles):
-                with job_cols[i % 3]:
-                    colors_j = ["#1d4ed8","#7c3aed","#0891b2","#059669","#d97706","#dc2626","#0d9488"]
-                    cj = colors_j[i % len(colors_j)]
-                    salary_est = career_obj['salary'] // 1000
-                    level_mult = [0.4, 0.6, 0.8, 0.9, 1.0, 1.2, 1.5][i % 7]
-                    est_sal = int(salary_est * level_mult)
-                    h(f'''<div style="background:white;border:1.5px solid #e0efff;border-radius:14px;padding:16px;margin-bottom:14px;border-left:4px solid {cj};transition:all .28s;" onmouseover="this.style.transform='translateY(-5px)';this.style.boxShadow='0 16px 36px rgba(29,78,216,.12)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='none'">
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:6px;">{role}</div>
-<div style="font-size:11.5px;color:{cj};font-weight:700;margin-bottom:4px;">💰 ~${est_sal}K–${int(est_sal*1.3)}K/yr</div>
-<div style="font-size:11px;color:#64748b;font-weight:500;">{career_obj['industry']} · {"Remote" if career_obj['remote']>=7 else "Hybrid" if career_obj['remote']>=5 else "On-site"}</div>
-</div>''')
-
-            # Freelancing platforms
-            h(f'''<div style="background:linear-gradient(135deg,#fdf4ff,#f5f3ff);border:1.5px solid #e9d5ff;border-radius:16px;padding:20px 24px;margin:14px 0 16px;">
-<div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:900;color:#7c3aed;margin-bottom:6px;">💻 Freelancing & Remote Work Platforms</div>
-<div style="font-size:12.5px;color:#475569;font-family:'Plus Jakarta Sans',sans-serif;">Earn in USD/EUR from anywhere — these platforms hire {sel} freelancers globally.</div>
-</div>''')
-            freelance_platforms = [
-                ("Upwork","💼","https://upwork.com",f"Top platform for {sel} contracts","#7c3aed","Most Popular"),
-                ("Fiverr","🎯","https://fiverr.com","Package-based gigs — build profile fast","#059669","Best Starter"),
-                ("Toptal","⭐","https://toptal.com","Top 3% talent — premium pay","#1d4ed8","Elite"),
-                ("Freelancer.com","🔍","https://freelancer.com","Bid on global projects","#0891b2","Competitive"),
-                ("PeoplePerHour","⏰","https://peopleperhour.com","Hourly contracts EU/UK","#d97706","Europe"),
-                ("Contra","📋","https://contra.com","Commission-free freelancing","#dc2626","No Fees"),
-                ("Remote.co","🌍","https://remote.co","100% remote jobs worldwide","#0d9488","Remote Only"),
-                ("LinkedIn ProFinder","📋","https://linkedin.com/profinder","Professional service marketplace","#0a66c2","Professional"),
-            ]
-            fp_cols = st.columns(4)
-            for i, (name, ico, url, desc, clr, tag) in enumerate(freelance_platforms):
-                with fp_cols[i % 4]:
-                    h(f'''<a href="{url}" target="_blank" style="display:block;background:white;border:1.5px solid #e9d5ff;border-radius:13px;padding:14px;margin-bottom:14px;text-decoration:none;transition:all .25s;" onmouseover="this.style.transform='translateY(-4px)';this.style.borderColor='{clr}';this.style.boxShadow='0 12px 28px rgba(124,58,237,.14)'" onmouseout="this.style.transform='translateY(0)';this.style.borderColor='#e9d5ff';this.style.boxShadow='none'">
-<div style="font-size:22px;margin-bottom:7px;">{ico}</div>
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:12.5px;font-weight:800;color:#0f172a;margin-bottom:3px;">{name}</div>
-<div style="font-size:10.5px;color:#64748b;font-weight:500;margin-bottom:6px;">{desc}</div>
-<span style="background:{clr}22;border:1px solid {clr}44;color:{clr};font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:99px;">{tag}</span>
-</a>''')
-
-            h('<div style="font-family:''Plus Jakarta Sans'',sans-serif;font-size:15px;font-weight:800;color:#0f172a;margin:6px 0 14px;">🌐 Traditional Job Platforms</div>')
-            job_platforms_rm = [
-                ("LinkedIn Jobs","💼","https://linkedin.com/jobs","Best for professional roles"),
-                ("Indeed","🔍","https://indeed.com","Largest job board globally"),
-                ("Glassdoor","🚪","https://glassdoor.com","Company reviews + jobs"),
-                ("Rozee.pk","🇵🇰","https://rozee.pk","Best for Pakistan jobs"),
-                ("AngelList","🚀","https://angel.co","Startups & tech"),
-                ("Mustakbil","🌟","https://mustakbil.com","Pakistan & Gulf jobs"),
-                ("Internshala","🎓","https://internshala.com","Internships & entry-level"),
-                ("Glassdoor","📈","https://glassdoor.com","Salary benchmarks + jobs"),
-            ]
-            jp_cols = st.columns(4)
-            for i, (name, ico, url, desc) in enumerate(job_platforms_rm):
-                with jp_cols[i % 4]:
-                    h(f'''<a href="{url}" target="_blank" style="display:block;background:white;border:1.5px solid #e0efff;border-radius:13px;padding:14px;margin-bottom:14px;text-decoration:none;transition:all .25s;" onmouseover="this.style.transform='translateY(-4px)';this.style.borderColor='#1d4ed8';this.style.boxShadow='0 12px 28px rgba(29,78,216,.14)'" onmouseout="this.style.transform='translateY(0)';this.style.borderColor='#e0efff';this.style.boxShadow='none'">
-<div style="font-size:24px;margin-bottom:7px;">{ico}</div>
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:12.5px;font-weight:800;color:#0f172a;margin-bottom:3px;">{name}</div>
-<div style="font-size:11px;color:#64748b;font-weight:500;">{desc}</div>
-</a>''')
-
-            # AI-powered job search
-            if "job_search_result" not in st.session_state: st.session_state.job_search_result = ""
-            if st.button(f"🤖 AI: Complete Freelancing & Job Guide for {sel}", use_container_width=True, key="ai_job_search"):
-                with st.spinner("AI analyzing job market, Upwork strategy, and income growth tips..."):
-                    sys_js = f"""You are a career job market expert. User wants to become a {sel} (age {age_v}, from {rm_country if rm_country!="Select country" else "Pakistan/South Asia"}).
-
-Provide a DETAILED guide:
-
-💼 SECTION 1 — TOP 6 JOB TITLES TO APPLY FOR
-List job titles with USD salary ranges (entry/mid/senior).
-
-💻 SECTION 2 — UPWORK & FIVERR FREELANCING STRATEGY
-- Exact services to offer on Upwork as a {sel}
-- Winning profile tips specific to {sel}
-- Hourly rate: beginner $X/hr, mid $Y/hr, expert $Z/hr
-- Top keywords to use in your Upwork profile
-- Realistic timeline to first client (weeks/months)
-- Best Fiverr gig ideas for {sel}
-
-🌐 SECTION 3 — REMOTE WORK & USD INCOME
-- How to find USD-paying remote jobs from Pakistan/South Asia
-- Best remote platforms for {sel}
-- Countries/markets to target for highest pay
-
-📈 SECTION 4 — INCOME GROWTH ROADMAP
-- Month 1-3: Expected income
-- Month 3-6: Expected income
-- Year 1: Expected income  
-- Year 2+: Scaling to $3000-$5000/month target
-
-🔑 SECTION 5 — MUST-HAVE SKILLS FOR GETTING HIRED
-- Top 5 in-demand skills that immediately get contracts
-- Certifications that boost Upwork/LinkedIn profile for {sel}
-
-Be practical, specific, age-appropriate for {age_v} years old."""
-                    st.session_state.job_search_result = ai_call([{"role":"user","content":f"Complete job & freelancing guide for {sel}, age {age_v}"}], sys_js, 1400)
-
-            if st.session_state.job_search_result:
-                h('<div class="pf-card fu"><div style="font-family:''Plus Jakarta Sans'',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:11px;">🤖 AI Job Market Intelligence</div>')
-                h(f'<div style="font-size:13.5px;color:#1e293b;line-height:1.95;white-space:pre-wrap;font-family:''Plus Jakarta Sans'',sans-serif;font-weight:500;">{st.session_state.job_search_result}</div>')
-                h('</div>')
-
-            burnout_warn = "⚠️ <strong style='color:#dc2626;'>High Burnout Risk:</strong> " + sel + " is known for intense workloads. Ensure you genuinely love this field. Negotiate work-life balance in contracts." if career_obj['burnout'] >= 7 else "✅ <strong style='color:#059669;'>Manageable Burnout Risk:</strong> " + sel + " has a healthy work-life balance. Still — advocate for your boundaries early."
-            h(f'''<div class="pf-card" style="border-left:4px solid #d97706;margin-top:8px;">
-<div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:900;color:#d97706;margin-bottom:10px;">🔥 Burnout Warning for {sel}</div>
-<div style="font-size:13px;color:#475569;line-height:1.85;font-family:'Plus Jakarta Sans',sans-serif;">{burnout_warn}</div>
-</div>''')
-
-        # ── Career Stats ──
-        col_a,col_b=st.columns(2)
-        with col_a:
-            h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:11px;">🏛️ Top Learning Platforms</div>')
-            for n,pl,d in [("Coursera","Google Certificates","Financial aid available · 3–6 months"),("edX","MIT / Harvard / Berkeley","Top university programs online"),("Udemy","Practical Projects","Affordable · Project-based learning"),("LinkedIn Learning","Professional Skills","16,000+ courses · 1 month free")]:
-                h(f"""<div style="padding:10px 13px;background:#f0f7ff;border-radius:11px;border-left:3px solid #1d4ed8;margin-bottom:8px;transition:all .22s;" onmouseover="this.style.background='#eff6ff';this.style.transform='translateX(4px)'" onmouseout="this.style.background='#f0f7ff';this.style.transform='translateX(0)'">
-<div style="font-weight:700;font-size:13px;color:#0f172a;">{n} — {pl}</div>
-<div style="font-size:11.5px;color:#64748b;margin-top:2px;font-weight:500;">{d}</div></div>""")
-            h('</div>')
-        with col_b:
-            h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:11px;">📊 Career Stats</div>')
-            for lbl,val,c in [("Salary Potential","$"+str(career_obj['salary']//1000)+"K/yr","#1d4ed8"),("Growth Rate",str(career_obj['growth'])+"%","#059669"),("Remote Score",str(career_obj['remote'])+"/10","#0891b2"),("Burnout Risk",str(career_obj['burnout'])+"/10","#d97706"),("Automation Risk",str(career_obj['automation'])+"%","#dc2626")]:
-                h(f"""<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1.5px solid #f0f7ff;transition:background .2s;">
-<span style="font-size:12.5px;font-weight:600;color:#1e293b;">{lbl}</span>
-<span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:900;color:{c};">{val}</span>
-</div>""")
-            h('</div>')
-
-    # ════════════════ RESUME ANALYZER ════════════════
-    elif ap == "resume":
-        h('<div class="fu"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:28px;font-weight:900;color:#0f172a;letter-spacing:-1.2px;margin-bottom:3px;transition:color .2s;cursor:default;" onmouseover="this.style.color=\'#1d4ed8\'" onmouseout="this.style.color=\'#0f172a\'">Resume Analyzer</div><div style="font-size:13.5px;color:#64748b;margin-bottom:22px;font-weight:500;">Upload your resume — AI analyzes structure, skills, and provides personalized tips.</div></div>')
-        col1,col2=st.columns([1.4,1])
-        with col1:
-            uploaded=st.file_uploader("Upload Resume (PDF, DOCX, or TXT)",type=["pdf","docx","txt"],key="resume_upload")
-            target_c=st.selectbox("Target Career Role",[c["title"] for c in CAREERS])
-            age_r=st.number_input("Your Age",min_value=10,max_value=65,value=int(p.get("age",18)),key="age_r")
-            if st.button("🔍 Analyze Resume with AI",use_container_width=True,key="btn_analyze") and uploaded:
-                text=read_file(uploaded)
-                if text:
-                    score_v,breakdown,skills_found=score_resume(text)
-                    st.session_state.resume_result={"score":score_v,"breakdown":breakdown,"skills":skills_found,"text":text[:500],"file":uploaded.name,"target":target_c}
-                    with st.spinner("AI coach reviewing your resume..."):
-                        sys_r=f"You are a professional resume coach. Analyze this resume for a {age_r}-year-old applying for {target_c}. Provide: 1) Top 3 Strengths, 2) Top 3 Critical Gaps, 3) 5 Specific Action Items. Be direct and practical."
-                        st.session_state.resume_result["ai_feedback"]=ai_call([{"role":"user","content":f"Resume:\n{text[:2000]}"}],sys_r,800)
-                else: st.error("Could not read file. Please try a different format.")
-        with col2:
-            if st.session_state.resume_result:
-                r=st.session_state.resume_result
-                h(f"""<div style="background:linear-gradient(135deg,#0f172a,#1e3a8a,#1d4ed8);border-radius:16px;padding:20px 22px;margin-bottom:16px;">
-<div style="font-size:9.5px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.6);margin-bottom:6px;">Analysis Complete</div>
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:18px;font-weight:900;color:white;margin-bottom:3px;">{r['file']}</div>
-<div style="font-size:13px;color:rgba(255,255,255,.68);">Target: {r['target']} · Age {age_r}</div>
-<div style="display:flex;gap:22px;margin-top:14px;">
-<div style="text-align:center;"><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:38px;font-weight:900;color:white;line-height:1;">{r['score']}</div><div style="font-size:10.5px;color:rgba(255,255,255,.6);font-weight:700;">/100 Score</div></div>
-<div style="text-align:center;"><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:38px;font-weight:900;color:white;line-height:1;">{len(r['text'].split())}</div><div style="font-size:10.5px;color:rgba(255,255,255,.6);font-weight:700;">Words</div></div>
-<div style="text-align:center;"><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:38px;font-weight:900;color:white;line-height:1;">{sum(len(v) for v in r['skills'].values())}</div><div style="font-size:10.5px;color:rgba(255,255,255,.6);font-weight:700;">Skills</div></div>
-</div></div>""")
-                h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:11px;">📊 Score Breakdown</div>')
-                for b in r["breakdown"]: h(pbar(b["l"],b["s"],b["m"],b["c"],f"{b['s']}/{b['m']}"))
-                h('</div>')
-            else:
-                h('<div class="pf-card" style="text-align:center;padding:54px;border:2px dashed #bfdbfe;background:#f8faff;"><div style="font-size:48px;margin-bottom:14px;">📄</div><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:17px;font-weight:800;color:#0f172a;margin-bottom:8px;">Ready to Analyze</div><div style="font-size:13px;color:#64748b;font-weight:500;">Upload your resume and click Analyze.</div></div>')
-        if st.session_state.resume_result and st.session_state.resume_result.get("ai_feedback"):
-            r=st.session_state.resume_result
-            h('<div class="pf-card fu"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:11px;">🧠 AI Career Coach Feedback</div>')
-            h(f'<div style="font-size:13.5px;color:#1e293b;line-height:1.92;white-space:pre-wrap;font-family:\'Plus Jakarta Sans\',sans-serif;font-weight:500;">{r["ai_feedback"]}</div>')
-            h('</div>')
-            h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:11px;">🔧 Skills Detected</div>')
-            for cat,skills_list in r["skills"].items():
-                h(f'<div style="font-size:10.5px;font-weight:700;color:#64748b;margin:8px 0 4px;">{cat.upper()}</div>')
-                h(''.join(badge(s.title(),"blue") for s in skills_list))
-            h('</div>')
-
-    # ════════════════ AI ADVISOR ════════════════
-    elif ap == "chat":
-        h('<div class="fu"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:28px;font-weight:900;color:#0f172a;letter-spacing:-1.2px;margin-bottom:3px;transition:color .2s;cursor:default;" onmouseover="this.style.color=\'#1d4ed8\'" onmouseout="this.style.color=\'#0f172a\'">AI Career Advisor</div><div style="font-size:13.5px;color:#64748b;margin-bottom:22px;font-weight:500;">Get personalized career advice powered by Groq Llama 3 70B.</div></div>')
-        quick_qs=["Highest paying tech careers 2025?","How to transition into data science?","Skills for AI/ML at age 20?","Which career has best work-life balance?","How to negotiate a higher salary?","Job market for UX Designers?"]
-        h('<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:9px;">💡 Quick Questions</div>')
-        qqcols=st.columns(3)
-        for i,q in enumerate(quick_qs):
-            with qqcols[i%3]:
-                if st.button(q,key=f"qq_{i}",use_container_width=True):
-                    st.session_state.chat_hist.append({"role":"user","content":q})
-                    with st.spinner("Thinking..."):
-                        reply=ai_call(st.session_state.chat_hist,"You are PathFinder AI, an expert career counselor. Give practical, specific advice. Be clear and well-structured.")
-                    st.session_state.chat_hist.append({"role":"assistant","content":reply}); st.rerun()
-        h('<div style="margin-top:16px;background:#f8faff;border:1.5px solid #bfdbfe;border-radius:16px 16px 0 0;padding:16px;min-height:340px;max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;">')
-        if not st.session_state.chat_hist:
-            h('<div class="pmsg-ai" style="max-width:90%;">👋 Hello! I\'m PathFinder AI — your personal career counselor.<br>Ask me about careers, skills, salaries, job market, or education. I\'m here to help! 🚀</div>')
-        for msg in st.session_state.chat_hist:
-            if msg["role"]=="user":
-                h(f'<div class="pmsg-user">{msg["content"]}</div>')
-            else:
-                h(f'<div class="pmsg-ai" style="max-width:90%;white-space:pre-wrap;">{msg["content"]}</div>')
-        h('</div>')
-        h('<div style="background:white;border:1.5px solid #bfdbfe;border-top:none;border-radius:0 0 16px 16px;padding:10px;display:flex;gap:8px;">')
-        user_inp=st.text_input("Ask anything about careers...",placeholder="e.g. What are the best remote careers for someone in Pakistan?",label_visibility="collapsed",key="chat_inp")
-        col_s,col_c=st.columns([4,1])
-        with col_s:
-            if st.button("Send Message →",key="chat_send",use_container_width=True):
-                if user_inp:
-                    st.session_state.chat_hist.append({"role":"user","content":user_inp})
-                    with st.spinner("Thinking..."):
-                        reply=ai_call(st.session_state.chat_hist,"You are PathFinder AI, an expert career counselor. Give practical, specific advice.")
-                    st.session_state.chat_hist.append({"role":"assistant","content":reply}); st.rerun()
-        with col_c:
-            if st.button("🗑️ Clear",key="clear_chat",use_container_width=True): st.session_state.chat_hist=[];st.rerun()
-        h('</div>')
-
-    # ════════════════ MARKET INSIGHTS ════════════════
-    elif ap == "insights":
-        h('<div class="fu"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:28px;font-weight:900;color:#0f172a;letter-spacing:-1.2px;margin-bottom:3px;transition:color .2s;cursor:default;" onmouseover="this.style.color=\'#1d4ed8\'" onmouseout="this.style.color=\'#0f172a\'">Market Insights</div><div style="font-size:13.5px;color:#64748b;margin-bottom:22px;font-weight:500;">Career trends, salary benchmarks, automation risks, and demand indicators.</div></div>')
-        c1,c2,c3,c4=st.columns(4)
-        for col,val,lbl,c in zip([c1,c2,c3,c4],["$97K","16.2%","17.1%","14"],["Avg Salary","Avg Growth Rate","Avg Auto Risk","High-Demand Careers"],["#1d4ed8","#059669","#dc2626","#d97706"]):
-            with col:
-                h(f'<div class="stat-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:24px;font-weight:900;color:{c};">{val}</div><div style="font-size:11px;color:#64748b;font-weight:600;margin-top:3px;">{lbl}</div></div>')
-        t1,t2,t3,t4=st.tabs(["💰 Salary Data","📈 Growth & Risk","🏠 Work & Life","📋 Full Database"])
-        with t1:
-            c1,c2=st.columns(2)
-            with c1:
-                h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:13px;">💰 Top 10 Salaries</div>')
-                for c in sorted(CAREERS,key=lambda x:-x["salary"])[:10]: h(pbar(c["title"],c["salary"],350000,"#1d4ed8","$"+str(c["salary"]//1000)+"K"))
-                h('</div>')
-            with c2:
-                h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:13px;">🏢 Industry Avg Salary</div>')
-                industries={}
-                for c in CAREERS: industries.setdefault(c["industry"],[]).append(c["salary"])
-                ind_avgs=sorted([(k,int(sum(v)/len(v))) for k,v in industries.items()],key=lambda x:-x[1])
-                cols8=["#1d4ed8","#059669","#d97706","#7c3aed","#0891b2","#dc2626","#0d9488","#a5b4fc","#f59e0b","#14b8a6"]
-                for i,(ind,avg) in enumerate(ind_avgs): h(pbar(ind,avg,350000,cols8[i%len(cols8)],"$"+str(avg//1000)+"K"))
-                h('</div>')
-        with t2:
-            c1,c2=st.columns(2)
-            with c1:
-                h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:13px;">📈 Fastest Growing</div>')
-                for c in sorted(CAREERS,key=lambda x:-x["growth"])[:10]: h(pbar(c["title"],c["growth"],40,"#059669",str(c["growth"])+"%"))
-                h('</div>')
-            with c2:
-                h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:13px;">🤖 Automation Risk</div>')
-                for c in sorted(CAREERS,key=lambda x:-x["automation"])[:10]:
-                    cr="#dc2626" if c["automation"]>30 else "#d97706" if c["automation"]>15 else "#059669"
-                    h(pbar(c["title"],c["automation"],45,cr,str(c["automation"])+"%"))
-                h('</div>')
-        with t3:
-            c1,c2=st.columns(2)
-            with c1:
-                h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:13px;">🏠 Best Remote Careers</div>')
-                for c in sorted(CAREERS,key=lambda x:-x["remote"])[:10]: h(pbar(c["title"],c["remote"],10,"#1d4ed8",str(c["remote"])+"/10"))
-                h('</div>')
-            with c2:
-                h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:13px;">⚖️ Best Work-Life Balance</div>')
-                for c in sorted(CAREERS,key=lambda x:-x["wlb"])[:10]: h(pbar(c["title"],c["wlb"],10,"#059669",str(c["wlb"])+"/10"))
-                h('</div>')
-        with t4:
-            h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:13px;">📋 Complete Career Database (30 Careers)</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;">')
-            h('<thead><tr style="background:#f0f7ff;">'+''.join(f'<th style="padding:9px 11px;text-align:left;font-weight:800;color:#1d4ed8;white-space:nowrap;border-bottom:2px solid #bfdbfe;">{hd}</th>' for hd in ["Career","Industry","Salary","Growth","Burnout","Auto Risk","WLB","Remote"])+'</tr></thead><tbody>')
-            for c in CAREERS:
-                ar="#dc2626" if c["automation"]>30 else "#d97706" if c["automation"]>15 else "#16a34a"
-                h(f'<tr style="border-bottom:1.5px solid #f0f7ff;transition:background .15s;" onmouseover="this.style.background=\'#f8faff\'" onmouseout="this.style.background=\'transparent\'"><td style="padding:8px 11px;font-weight:600;">{c["icon"]} {c["title"]}</td><td style="padding:8px 11px;color:#64748b;font-size:12px;">{c["industry"]}</td><td style="padding:8px 11px;font-family:\'Plus Jakarta Sans\',sans-serif;font-weight:900;color:#1d4ed8;">${c["salary"]//1000}K</td><td style="padding:8px 11px;color:#059669;font-weight:700;">{c["growth"]}%</td><td style="padding:8px 11px;color:#64748b;">{c["burnout"]}/10</td><td style="padding:8px 11px;font-weight:700;color:{ar};">{c["automation"]}%</td><td style="padding:8px 11px;color:#64748b;">{c["wlb"]}/10</td><td style="padding:8px 11px;color:#64748b;">{c["remote"]}/10</td></tr>')
-            h('</tbody></table></div></div>')
-
-    # ════════════════ INSTITUTE FINDER ════════════════
-    elif ap == "institutes":
-        h('<div class="fu"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:28px;font-weight:900;color:#0f172a;letter-spacing:-1.2px;margin-bottom:3px;transition:color .2s;cursor:default;" onmouseover="this.style.color=\'#1d4ed8\'" onmouseout="this.style.color=\'#0f172a\'">Institute Finder</div><div style="font-size:13.5px;color:#64748b;margin-bottom:22px;font-weight:500;">AI finds the best universities, courses, and scholarships worldwide for your career.</div></div>')
-        h('<div class="pf-card">')
-        c1,c2,c3,c4=st.columns(4)
-        with c1: i_career=st.selectbox("Target Career",[c["title"] for c in CAREERS])
-        with c2: i_country=st.selectbox("Your Country",["Select country","Pakistan","India","United States","United Kingdom","UAE","Saudi Arabia","Canada","Australia","Other"])
-        with c3: i_age=st.number_input("Age",min_value=10,max_value=65,value=int(p.get("age",18)),key="i_age")
-        with c4: i_level=st.selectbox("Current Level",["Select level","High School","Undergraduate","Graduate","Professional"])
-        h('</div>')
-        if st.button("🏛️ Find Best Institutes with AI →",use_container_width=True):
-            with st.spinner("AI searching for the best institutes worldwide..."):
-                sys_i=f"You are an expert education counselor. Find the best educational institutes for someone who wants to become a {i_career}. They are {i_age} years old, from {i_country}, at {i_level} level.\n\nProvide:\n1. Top 3 local universities (with program names and fees)\n2. Top 3 international universities (with scholarship info)\n3. Top 3 online courses/platforms (with cost and duration)\n4. Top 3 certifications (with exam details and cost)\n5. Key advice for their specific location and age.\n\nBe specific and practical."
-                st.session_state.inst_result=ai_call([{"role":"user","content":f"Find institutes for {i_career}, {i_age}yo, from {i_country}, {i_level} level"}],sys_i,1000)
-        if not st.session_state.inst_result:
-            h('<div class="pf-card" style="text-align:center;padding:60px;border:2px dashed #bfdbfe;background:#f8faff;"><div style="font-size:52px;margin-bottom:14px;">🏛️</div><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:18px;font-weight:800;color:#0f172a;margin-bottom:8px;">AI Institute Finder Ready</div><div style="font-size:13px;color:#64748b;max-width:380px;margin:0 auto;line-height:1.85;font-weight:500;">Select your career, country, age and level — then click the button to get worldwide AI-powered institute recommendations.</div></div>')
-        else:
-            h('<div class="pf-card fu"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:13px;">🏛️ AI-Powered Institute Recommendations</div>')
-            h(f'<div style="font-size:13.5px;color:#1e293b;line-height:1.95;white-space:pre-wrap;font-family:\'Plus Jakarta Sans\',sans-serif;font-weight:500;">{st.session_state.inst_result}</div>')
-            h('</div>')
-
-    # ════════════════ MODEL TRAINING ════════════════
-    elif ap == "training":
-        h('<div class="fu"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:28px;font-weight:900;color:#0f172a;letter-spacing:-1.2px;margin-bottom:3px;transition:color .2s;cursor:default;" onmouseover="this.style.color=\'#1d4ed8\'" onmouseout="this.style.color=\'#0f172a\'">Model Training</div><div style="font-size:13.5px;color:#64748b;margin-bottom:22px;font-weight:500;">Train the Random Forest career matching model with data augmentation and 5-fold cross-validation.</div></div>')
-        c1,c2,c3=st.columns(3)
-        for col,ico,val,lbl in zip([c1,c2,c3],["🗄️","🏭","🔢"],["30","12","7"],["Careers in Dataset","Industries","ML Features"]):
-            with col:
-                h(f'<div class="stat-card"><div style="font-size:1.8rem;margin-bottom:8px;">{ico}</div><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:24px;font-weight:900;color:#1d4ed8;">{val}</div><div style="font-size:11px;color:#64748b;font-weight:600;margin-top:3px;">{lbl}</div></div>')
-        h('<div class="pf-card" style="margin-top:18px;"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:14px;">⚙️ Training Configuration</div>')
+            cs=[r["career"] for _,r in df[df["industry"].isin(inds)].iterrows() if fn(r)][:12]
+            if cs:
+                st.markdown(f"""<div style="padding:10px 16px;background:white;border-left:4px solid {color};
+                  border-radius:8px;margin:6px 0;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+                  <strong style="color:{color};">{cat}</strong>
+                  <span style="color:var(--muted);font-size:.83rem;margin-left:10px;">{" · ".join(cs)}</span>
+                </div>""",unsafe_allow_html=True)
+    with t3:
+        c1,c2 = st.columns(2)
+        with c1:
+            fig5=px.scatter(df[df["industry"].isin(inds)],x="work_life_balance",y="burnout_risk",
+                color="industry",hover_name="career",size="avg_salary_usd",
+                title="Work-Life Balance vs Burnout Risk",color_discrete_sequence=PF_COLORS)
+            fig5.update_layout(**pf_layout(xaxis=dict(gridcolor="#e8eaf6",title="Work-Life Balance",linecolor="#d0d7f0"),
+                yaxis=dict(gridcolor="#e8eaf6",title="Burnout Risk",linecolor="#d0d7f0")))
+            st.plotly_chart(fig5,use_container_width=True)
+        with c2:
+            st.markdown("<div class='pf-card'><div class='pf-card-title'>🏠 Remote Work Leaders</div>",unsafe_allow_html=True)
+            for _,row in df.nlargest(10,"remote_possibility").iterrows():
+                pct=row["remote_possibility"]*10
+                st.markdown(f"""<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);">
+                  <div style="min-width:160px;font-size:.82rem;font-weight:600;">{row['career']}</div>
+                  <div style="flex:1;background:#e8eaf6;border-radius:999px;height:6px;">
+                    <div style="width:{pct:.0f}%;height:6px;border-radius:999px;background:linear-gradient(90deg,#7091E6,#3D52A0);"></div></div>
+                  <div style="color:var(--primary);font-weight:800;font-size:.82rem;min-width:30px;">{row['remote_possibility']}/10</div>
+                </div>""",unsafe_allow_html=True)
+            st.markdown("</div>",unsafe_allow_html=True)
+    with t4:
+        num_cols=["avg_salary_usd","growth_rate","automation_risk","work_life_balance",
+                  "creativity_level","social_interaction","remote_possibility","burnout_risk"]
+        corr=df[num_cols].corr()
+        fig6=go.Figure(data=go.Heatmap(z=corr.values,x=corr.columns.tolist(),y=corr.columns.tolist(),
+            colorscale=[[0,"#EDE8F5"],[0.5,"#7091E6"],[1,"#3D52A0"]],zmin=-1,zmax=1,
+            text=corr.round(2).values,texttemplate="%{text}"))
+        fig6.update_layout(**pf_layout(title="Feature Correlation Matrix",height=480))
+        st.plotly_chart(fig6,use_container_width=True)
         c1,c2=st.columns(2)
         with c1:
-            aug=st.slider("Augmentation Samples per Career",50,800,400,50)
-            h(f'<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:13px;font-weight:900;color:#1d4ed8;margin-bottom:8px;">{aug} samples · Total: {aug*30:,} rows</div>')
+            fig7=px.scatter(df,x="avg_salary_usd",y="burnout_risk",color="industry",
+                hover_name="career",trendline="ols",title="Salary vs Burnout Risk",color_discrete_sequence=PF_COLORS)
+            fig7.update_layout(**pf_layout()); st.plotly_chart(fig7,use_container_width=True)
         with c2:
-            n_trees=st.slider("Number of Trees",50,300,150,25)
-            h(f'<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:13px;font-weight:900;color:#1d4ed8;margin-bottom:8px;">{n_trees} trees · Max Depth: 10</div>')
-        h('</div>')
-        if st.button("🚂 Train Model Now",use_container_width=True):
-            if not ML_OK:
-                st.error("scikit-learn not installed. Run: pip install scikit-learn")
+            fig8=px.histogram(df,x="avg_salary_usd",nbins=15,color="industry",
+                title="Salary Distribution",color_discrete_sequence=PF_COLORS,barmode="overlay",opacity=.75)
+            fig8.update_layout(**pf_layout()); st.plotly_chart(fig8,use_container_width=True)
+
+# ═══════════════════════════════════════════════════════════════════
+# APP: MODEL TRAINING  (uses career_guidance_dataset.csv with
+#                       Recommended_Career_Path target column)
+# ═══════════════════════════════════════════════════════════════════
+def app_training():
+    warnings.filterwarnings("ignore")
+    from sklearn.preprocessing import LabelEncoder, StandardScaler
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.svm import SVC
+    from sklearn.naive_bayes import GaussianNB
+    from sklearn.neighbors import KNeighborsClassifier
+    from sklearn.ensemble import RandomForestClassifier
+    try:
+        from xgboost import XGBClassifier
+        HAS_XGB = True
+    except: HAS_XGB = False
+    from sklearn.model_selection import train_test_split, cross_val_score
+    from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+    st.markdown("<h2>🤖 Model Training & Evaluation</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='color:var(--muted);'>Supervised ML on the 9,500-row student career dataset.</p>",
+                unsafe_allow_html=True)
+
+    if not os.path.exists(DATASET_PATH):
+        st.error(f"❌ Dataset not found: `{DATASET_PATH}`. Place `career_guidance_dataset.csv` in the same folder.")
+        return
+
+    df_raw = pd.read_csv(DATASET_PATH)
+    df = df_raw.copy()
+    df.columns = df.columns.str.strip()
+    TARGET = "Recommended_Career_Path"
+    if TARGET not in df.columns:
+        st.error(f"❌ Column '{TARGET}' not found. Available: {list(df.columns)}")
+        return
+
+    if 'train_data' not in st.session_state:
+        with st.spinner("🔧 Preprocessing data..."):
+            df_clean = df.copy()
+            drop_cols = [c for c in ["Student_ID","Name"] if c in df_clean.columns]
+            df_clean.drop(columns=drop_cols, inplace=True)
+            y_raw = df_clean.pop(TARGET)
+            for col in df_clean.columns:
+                if df_clean[col].dtype == "object":
+                    df_clean[col].fillna(df_clean[col].mode()[0], inplace=True)
+                else:
+                    df_clean[col].fillna(df_clean[col].median(), inplace=True)
+            le_dict = {}
+            for col in df_clean.select_dtypes(include="object").columns:
+                le = LabelEncoder()
+                df_clean[col] = le.fit_transform(df_clean[col].astype(str))
+                le_dict[col] = le
+            le_target = LabelEncoder()
+            y = le_target.fit_transform(y_raw.astype(str))
+            class_names = le_target.classes_
+            X = df_clean.values.astype(float)
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(X)
+            st.session_state['train_data'] = {
+                'df_clean':df_clean,'scaler':scaler,'le_target':le_target,
+                'class_names':class_names,'le_dict':le_dict,'drop_cols':drop_cols,
+                'X_scaled':X_scaled,'y':y
+            }
+
+    ds = st.session_state['train_data']
+    df_clean   = ds['df_clean'];   scaler   = ds['scaler']
+    le_target  = ds['le_target'];  class_names = ds['class_names']
+    le_dict    = ds['le_dict'];    drop_cols   = ds['drop_cols']
+    X_scaled   = ds['X_scaled'];   y           = ds['y']
+
+    c1,c2,c3,c4 = st.columns(4)
+    with c1: st.metric("Total Records",len(df))
+    with c2: st.metric("Features",len(df.columns)-1)
+    with c3: st.metric("Career Classes",df[TARGET].nunique())
+    with c4: st.metric("Missing Values",df.isnull().sum().sum())
+
+    with st.expander("📊 Dataset Preview"):
+        st.dataframe(df.head(10), use_container_width=True)
+
+    st.markdown("<div class='pf-card'>", unsafe_allow_html=True)
+    st.markdown("<div class='pf-card-title'>⚙️ Training Configuration</div>", unsafe_allow_html=True)
+    co1,co2 = st.columns(2)
+    with co1:
+        test_size = st.slider("Test Split",0.10,0.40,0.20,0.05)
+        cv_folds  = st.slider("CV Folds",3,10,5)
+    model_choices = ["Logistic Regression","Naive Bayes","KNN","Random Forest"]
+    if HAS_XGB: model_choices += ["XGBoost"]
+    with co2:
+        models_to_run = st.multiselect("Select Models",model_choices,
+            default=["Logistic Regression","Random Forest"] + (["XGBoost"] if HAS_XGB else []))
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    run_btn = st.button("Train All Selected Models", use_container_width=True, type="primary")
+    if run_btn and models_to_run:
+        with st.spinner(" Training Models..."):
+            X_tr,X_te,y_tr,y_te = train_test_split(X_scaled,y,test_size=test_size,random_state=42,stratify=y)
+            MODEL_MAP = {
+                "Logistic Regression": LogisticRegression(max_iter=500,random_state=42),
+                "SVM":                 SVC(kernel="rbf",probability=True,random_state=42),
+                "Naive Bayes":         GaussianNB(),
+                "KNN":                 KNeighborsClassifier(n_neighbors=5),
+                "Random Forest":       RandomForestClassifier(n_estimators=200,max_depth=12,random_state=42,n_jobs=-1),
+            }
+            if HAS_XGB:
+                MODEL_MAP["XGBoost"] = XGBClassifier(n_estimators=200,max_depth=6,
+                    use_label_encoder=False,eval_metric="mlogloss",random_state=42,verbosity=0)
+            results = {}
+            for name in models_to_run:
+                clf = MODEL_MAP[name]; clf.fit(X_tr,y_tr); y_pred=clf.predict(X_te)
+                acc = accuracy_score(y_te,y_pred)
+                cv  = cross_val_score(clf,X_scaled,y,cv=cv_folds,scoring="accuracy")
+                results[name] = {"model":clf,"accuracy":acc,"cv_mean":cv.mean(),"cv_std":cv.std(),
+                                 "y_pred":y_pred}
+            st.session_state['train_results'] = results
+            st.success("✅ Training Complete!")
+
+    results = st.session_state.get('train_results',{})
+    if results:
+        st.markdown("<br><h3>📈 Model Comparison</h3>", unsafe_allow_html=True)
+        best_name = max(results,key=lambda n:results[n]["accuracy"])
+        st.success(f"🏆 Best Model: **{best_name}** — **{results[best_name]['accuracy']*100:.1f}%** accuracy")
+        acc_df = pd.DataFrame({"Model":list(results.keys()),
+            "Accuracy":[r["accuracy"]*100 for r in results.values()]}).sort_values("Accuracy",ascending=False)
+        fig_acc = px.bar(acc_df,x="Model",y="Accuracy",
+            text=acc_df["Accuracy"].apply(lambda x:f"{x:.1f}%"),color="Accuracy",
+            color_continuous_scale=[[0,"#EDE8F5"],[0.5,"#7091E6"],[1,"#3D52A0"]],title="Model Accuracy (%)")
+        fig_acc.update_traces(textposition="outside")
+        fig_acc.update_layout(**pf_layout(coloraxis_showscale=False,yaxis=dict(range=[0,115])))
+        st.plotly_chart(fig_acc,use_container_width=True)
+
+        st.markdown("---")
+        st.markdown("<h3>⚡ Live Career Predictor</h3>", unsafe_allow_html=True)
+        pred_model_name = st.selectbox("Model",list(results.keys()),key="pred_model")
+        original_df_nodrop = df.drop(columns=[TARGET]+drop_cols,errors="ignore")
+        feat_names = df_clean.columns.tolist()
+        input_vals = []
+        st.markdown("<div class='pf-card'>", unsafe_allow_html=True)
+        cols_ui = st.columns(3)
+        for idx_f,feat in enumerate(feat_names):
+            orig_col = original_df_nodrop[feat] if feat in original_df_nodrop.columns else None
+            with cols_ui[idx_f % 3]:
+                if orig_col is not None and orig_col.dtype == "object":
+                    unique_vals = sorted(orig_col.dropna().unique().tolist())
+                    selected = st.selectbox(feat,unique_vals,key=f"live_{feat}")
+                    encoded = le_dict[feat].transform([str(selected)])[0]
+                    input_vals.append(float(encoded))
+                else:
+                    col_min=float(df_clean[feat].min()); col_max=float(df_clean[feat].max())
+                    col_med=float(df_clean[feat].median())
+                    val = st.slider(feat,col_min,col_max,col_med,key=f"live_{feat}")
+                    input_vals.append(val)
+        st.markdown("</div>", unsafe_allow_html=True)
+        if st.button(" Predict Now",use_container_width=True,type="primary"):
+            raw_input = np.array([input_vals])
+            scaled_input = scaler.transform(raw_input)
+            clf_live = results[pred_model_name]["model"]
+            pred_label = le_target.inverse_transform(clf_live.predict(scaled_input))[0]
+            if hasattr(clf_live,"predict_proba"):
+                probs = clf_live.predict_proba(scaled_input)[0]
+                top_idx = np.argsort(probs)[::-1][:5]
+                st.markdown(f"""<div class='pf-card'>
+                  <div class='pf-card-title'> Predicted: <span style='color:#22c55e;'>{pred_label}</span></div>""",
+                  unsafe_allow_html=True)
+                for rank,ix in enumerate(top_idx):
+                    pct = probs[ix]*100; clr = PF_COLORS[rank%len(PF_COLORS)]
+                    st.markdown(f"""
+                    <div style="display:flex;align-items:center;gap:14px;margin:8px 0;">
+                      <div style="color:{clr};font-family:Syne,sans-serif;font-weight:900;width:26px;">#{rank+1}</div>
+                      <div style="flex:1;">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                          <span style="font-weight:600;">{le_target.classes_[ix]}</span>
+                          <span style="color:{clr};font-family:Syne,sans-serif;font-weight:800;">{pct:.1f}%</span>
+                        </div>
+                        <div class="score-bar-bg">
+                          <div class="score-bar-fill" style="width:{pct:.1f}%;background:{clr};"></div>
+                        </div>
+                      </div>
+                    </div>""",unsafe_allow_html=True)
+                st.markdown("</div>",unsafe_allow_html=True)
             else:
-                prog=st.progress(0); status=st.empty()
-                for i,step in enumerate(["Generating training data...","Scaling features...","Splitting train/test...","Training Random Forest...","Running cross-validation...","Evaluating performance..."]):
-                    status.markdown(f"**{step}**"); prog.progress((i+1)/6); time.sleep(0.5)
-                n_samples=aug*30
-                X=np.random.randn(n_samples,7); y=np.repeat(range(30),aug)
-                X_train,X_test,y_train,y_test=train_test_split(X,y,test_size=0.2,random_state=42)
-                scaler=StandardScaler()
-                X_tr=scaler.fit_transform(X_train); X_te=scaler.transform(X_test)
-                clf=RandomForestClassifier(n_estimators=n_trees,max_depth=10,random_state=42,n_jobs=-1)
-                clf.fit(X_tr,y_train)
-                acc=clf.score(X_te,y_test)
-                cv_scores=cross_val_score(clf,X_tr,y_train,cv=5)
-                st.session_state.train_results={"acc":acc,"cv":cv_scores,"feat_imp":clf.feature_importances_,"n_samples":n_samples}
-                st.session_state.train_done=True; prog.progress(1.0); status.empty(); st.rerun()
+                st.success(f" Predicted: **{pred_label}**")
+    else:
+        st.info("👆 Train a model above to unlock the Live Predictor.")
 
-        if st.session_state.train_done and st.session_state.train_results:
-            tr=st.session_state.train_results
-            st.success("✅ Model trained successfully!")
-            h('<div class="pf-card fu">')
-            c1,c2,c3,c4=st.columns(4)
-            for col,val,lbl,c in zip([c1,c2,c3,c4],[f"{tr['acc']*100:.1f}%",f"{tr['cv'].mean()*100:.1f}%",f"±{tr['cv'].std()*100:.1f}%",f"{tr['n_samples']:,}"],["Test Accuracy","CV Mean (5-fold)","CV Std Dev","Training Samples"],["#1d4ed8","#059669","#7c3aed","#0891b2"]):
-                with col:
-                    h(f'<div style="background:#f8faff;border-radius:12px;padding:16px;text-align:center;border:1.5px solid #e0efff;transition:border-color .2s;" onmouseover="this.style.borderColor=\'{c}\'" onmouseout="this.style.borderColor=\'#e0efff\'"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:22px;font-weight:900;color:{c};">{val}</div><div style="font-size:10.5px;color:#64748b;font-weight:600;margin-top:3px;">{lbl}</div></div>')
-            h('<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin:16px 0 11px;">📊 Feature Importance</div>')
-            fnames=["Work-Life Balance","Creativity Level","Social Interaction","Remote Score","Growth Rate","Burnout Inverse","Automation Inverse"]
-            fcolors=["#1d4ed8","#7c3aed","#0891b2","#059669","#d97706","#dc2626","#a5b4fc"]
-            for fn,fi,fc in sorted(zip(fnames,tr["feat_imp"],fcolors),key=lambda x:-x[1]): h(pbar(fn,fi,1.0,fc,f"{fi:.3f}"))
-            h('</div>')
-            h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:14px;">⚡ Live Prediction Test</div>')
-            c1,c2,c3=st.columns(3)
-            with c1:
-                t_wlb=st.slider("Work-Life Balance",1,10,8,key="t_wlb")
-                h(f'<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:900;color:#1d4ed8;margin-bottom:8px;">{t_wlb}/10</div>')
-            with c2:
-                t_cr=st.slider("Creativity",1,10,8,key="t_cr")
-                h(f'<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:900;color:#1d4ed8;margin-bottom:8px;">{t_cr}/10</div>')
-            with c3:
-                t_so=st.slider("Social",1,10,5,key="t_so")
-                h(f'<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:900;color:#1d4ed8;margin-bottom:8px;">{t_so}/10</div>')
-            live_m=match_careers({"wlb":t_wlb,"creativity":t_cr,"social":t_so,"remote":7,"income":7})[:5]
-            h('<div style="margin-top:12px;">')
-            for i,(c,s) in enumerate(live_m):
-                sc=fcolors[i]
-                h(f"""<div style="display:flex;align-items:center;gap:11px;padding:9px 13px;background:#f8faff;border-radius:11px;margin-bottom:7px;border:1.5px solid #e0efff;transition:all .2s;" onmouseover="this.style.transform='translateX(5px)';this.style.borderColor='{sc}'" onmouseout="this.style.transform='translateX(0)';this.style.borderColor='#e0efff'">
-<span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:900;color:{sc};width:24px;">#{i+1}</span>
-<span style="font-size:14px;">{c['icon']}</span>
-<span style="flex:.9;font-size:13px;font-weight:600;color:#0f172a;">{c['title']}</span>
-<div style="flex:1;height:5px;background:#e0efff;border-radius:99px;overflow:hidden;"><div style="width:{s}%;height:5px;background:{sc};border-radius:99px;"></div></div>
-<span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:900;color:{sc};min-width:48px;text-align:right;">{s}%</span></div>""")
-            h('</div></div>')
+# ═══════════════════════════════════════════════════════════════════
+# MAIN ROUTER
+# ═══════════════════════════════════════════════════════════════════
+def main():
+    render_nav()
+    if st.session_state.logged_in:
+        render_sidebar()
+        pg = st.session_state.app_page
+        {
+            "home":     app_home,
+            "profile":  app_profile,
+            "matches":  app_matches,
+            "roadmap":  app_roadmap,
+            "institute":app_institutes,
+            "resume":   app_resume,
+            "chat":     app_chat,
+            "insights": app_insights,
+            "training": app_training,
+        }.get(pg, app_home)()
+    else:
+        pg = st.session_state.page
+        if   pg == "landing": page_landing()
+        elif pg == "about":   page_about()
+        elif pg == "auth":    page_auth()
+        else:                 page_landing()
 
-    h('</div>')  # close padding wrapper
-    
+if __name__ == "__main__":
+    main()
