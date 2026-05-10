@@ -1,4 +1,4 @@
-"""PathFinder AI — Career Intelligence Platform | Full Build v3"""
+"""PathFinder AI — Career Intelligence Platform | Master Build"""
 import streamlit as st, os, re, io, time
 import streamlit.components.v1 as components
 
@@ -31,7 +31,7 @@ def init():
         "app_page":"home","profile":{},"matches":[],"chat_hist":[],
         "roadmap_txt":"","inst_result":"","resume_result":None,
         "train_done":False,"sel_career":"UX Designer","train_results":None,
-        "roadmap_mode":"education"
+        "roadmap_mode":"education","job_search_result":""
     }.items():
         if k not in st.session_state: st.session_state[k]=v
 init()
@@ -48,25 +48,25 @@ CAREERS=[
     {"title":"Game Developer","industry":"Gaming","salary":95000,"growth":18,"burnout":6,"automation":12,"wlb":5,"creativity":9,"social":4,"remote":8,"icon":"🎮","img":"https://images.unsplash.com/photo-1511512578047-dfb367046420?w=400&q=80","skills":["Unity","Unreal Engine","C#","C++","Game Design"],"edu":"BS CS / Game Design"},
     {"title":"Graphic Designer","industry":"Creative","salary":55000,"growth":10,"burnout":3,"automation":20,"wlb":8,"creativity":10,"social":5,"remote":7,"icon":"🎭","img":"https://images.unsplash.com/photo-1626785774573-4b799315345d?w=400&q=80","skills":["Photoshop","Illustrator","Branding","Typography","Color Theory"],"edu":"BS Graphic Design"},
     {"title":"Doctor","industry":"Healthcare","salary":200000,"growth":18,"burnout":8,"automation":5,"wlb":3,"creativity":4,"social":9,"remote":2,"icon":"🏥","img":"https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&q=80","skills":["Clinical Diagnosis","Patient Care","Medical Research","Pharmacology","Surgery"],"edu":"MBBS + Specialization"},
-    {"title":"Surgeon","industry":"Healthcare","salary":350000,"growth":15,"burnout":9,"automation":5,"wlb":2,"creativity":6,"social":7,"remote":1,"icon":"⚕️","img":"https://images.unsplash.com/photo-1551190822-a9333d879b1f?w=400&q=80","skills":["Surgery","Anatomy","Precision","Decision Making","Medical Knowledge"],"edu":"MBBS + MS Surgery"},
-    {"title":"Psychologist","industry":"Healthcare","salary":80000,"growth":20,"burnout":5,"automation":10,"wlb":7,"creativity":6,"social":9,"remote":6,"icon":"🧠","img":"https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&q=80","skills":["CBT","Therapy","Research","Assessment","Counseling"],"edu":"BS/MS/PhD Psychology"},
-    {"title":"Investment Banker","industry":"Finance","salary":180000,"growth":12,"burnout":9,"automation":15,"wlb":2,"creativity":5,"social":7,"remote":4,"icon":"💰","img":"https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=400&q=80","skills":["Financial Modeling","Valuation","Excel","Deal Structuring","Bloomberg"],"edu":"BS Finance + MBA"},
-    {"title":"Financial Analyst","industry":"Finance","salary":85000,"growth":10,"burnout":6,"automation":25,"wlb":5,"creativity":4,"social":5,"remote":6,"icon":"📈","img":"https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&q=80","skills":["Excel","Financial Modeling","Bloomberg","Forecasting","Reporting"],"edu":"BS Finance"},
-    {"title":"Accountant","industry":"Finance","salary":65000,"growth":8,"burnout":4,"automation":45,"wlb":6,"creativity":2,"social":4,"remote":7,"icon":"🧾","img":"https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&q=80","skills":["GAAP","QuickBooks","Tax","Excel","Auditing"],"edu":"BS Accounting / CPA"},
-    {"title":"Marketing Manager","industry":"Marketing","salary":95000,"growth":15,"burnout":6,"automation":20,"wlb":6,"creativity":8,"social":8,"remote":7,"icon":"📣","img":"https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&q=80","skills":["SEO","Content Marketing","Analytics","Brand Strategy","Social Media"],"edu":"BS Marketing"},
-    {"title":"Civil Engineer","industry":"Engineering","salary":80000,"growth":12,"burnout":5,"automation":15,"wlb":5,"creativity":5,"social":5,"remote":3,"icon":"🏗️","img":"https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=400&q=80","skills":["AutoCAD","Structural Analysis","Project Management","Surveying","Site Management"],"edu":"BS Civil Engineering"},
-    {"title":"Electrical Engineer","industry":"Engineering","salary":90000,"growth":14,"burnout":5,"automation":20,"wlb":6,"creativity":6,"social":4,"remote":5,"icon":"⚡","img":"https://images.unsplash.com/photo-1581092921461-7e9e0a7b5f44?w=400&q=80","skills":["Circuit Design","PCB","MATLAB","AutoCAD","Embedded Systems"],"edu":"BS Electrical Engineering"},
-    {"title":"University Professor","industry":"Education","salary":75000,"growth":8,"burnout":4,"automation":8,"wlb":8,"creativity":7,"social":7,"remote":6,"icon":"📚","img":"https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=400&q=80","skills":["Research","Teaching","Academic Writing","Mentoring","Public Speaking"],"edu":"PhD in Field"},
-    {"title":"Lawyer","industry":"Legal","salary":130000,"growth":10,"burnout":7,"automation":22,"wlb":4,"creativity":6,"social":8,"remote":5,"icon":"⚖️","img":"https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=400&q=80","skills":["Legal Research","Litigation","Contract Law","Negotiation","Drafting"],"edu":"LLB + Bar Exam"},
-    {"title":"Architect","industry":"Design","salary":80000,"growth":12,"burnout":6,"automation":12,"wlb":5,"creativity":9,"social":5,"remote":4,"icon":"🏛️","img":"https://images.unsplash.com/photo-1486325212027-8081e485255e?w=400&q=80","skills":["AutoCAD","SketchUp","BIM","Design Theory","Project Management"],"edu":"B.Arch / M.Arch"},
-    {"title":"Pilot","industry":"Aviation","salary":130000,"growth":8,"burnout":6,"automation":10,"wlb":4,"creativity":3,"social":6,"remote":1,"icon":"✈️","img":"https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=400&q=80","skills":["Navigation","Aviation Safety","Decision Making","Communication","Technical Flying"],"edu":"BS Aviation / CPL"},
-    {"title":"Environmental Scientist","industry":"Science","salary":75000,"growth":22,"burnout":3,"automation":10,"wlb":7,"creativity":6,"social":6,"remote":5,"icon":"🌿","img":"https://images.unsplash.com/photo-1542601906897-eabf21e56e5e?w=400&q=80","skills":["GIS","Environmental Analysis","Field Research","Data Collection","Policy Writing"],"edu":"BS Environmental Science"},
-    {"title":"HR Manager","industry":"Business","salary":75000,"growth":10,"burnout":5,"automation":20,"wlb":6,"creativity":4,"social":9,"remote":6,"icon":"👥","img":"https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=400&q=80","skills":["Recruitment","HRIS","Employee Relations","Training","Labor Law"],"edu":"BS HR / Business Admin"},
-    {"title":"Biomedical Engineer","industry":"Healthcare","salary":90000,"growth":20,"burnout":4,"automation":12,"wlb":6,"creativity":7,"social":5,"remote":5,"icon":"🧬","img":"https://images.unsplash.com/photo-1530026405186-ed1f139313f8?w=400&q=80","skills":["Medical Devices","Biomechanics","CAD","Signal Processing","Research"],"edu":"BS Biomedical Engineering"},
-    {"title":"Social Media Manager","industry":"Marketing","salary":60000,"growth":18,"burnout":5,"automation":25,"wlb":7,"creativity":8,"social":8,"remote":9,"icon":"📱","img":"https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=400&q=80","skills":["Instagram","TikTok","Content Creation","Analytics","Copywriting"],"edu":"BS Marketing / Communications"},
-    {"title":"Nutritionist","industry":"Healthcare","salary":65000,"growth":12,"burnout":3,"automation":18,"wlb":8,"creativity":5,"social":7,"remote":6,"icon":"🥗","img":"https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=400&q=80","skills":["Nutrition Science","Diet Planning","Health Coaching","Research","Client Counseling"],"edu":"BS Nutrition / Dietetics"},
-    {"title":"Journalist","industry":"Media","salary":55000,"growth":5,"burnout":6,"automation":30,"wlb":5,"creativity":8,"social":7,"remote":7,"icon":"📰","img":"https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=400&q=80","skills":["Writing","Research","Interviewing","Storytelling","Media Ethics"],"edu":"BS Journalism"},
+    {"title":"Nurse","industry":"Healthcare","salary":70000,"growth":15,"burnout":7,"automation":4,"wlb":5,"creativity":3,"social":9,"remote":2,"icon":"💊","img":"https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=400&q=80","skills":["Patient Care","Clinical Skills","Communication","Emergency Response","Medical Knowledge"],"edu":"BS Nursing / RN License"},
+    {"title":"Pharmacist","industry":"Healthcare","salary":120000,"growth":3,"burnout":4,"automation":22,"wlb":7,"creativity":2,"social":7,"remote":3,"icon":"🧬","img":"https://images.unsplash.com/photo-1576602976047-174e57a47881?w=400&q=80","skills":["Pharmacology","Patient Counseling","Drug Interactions","Dispensing","Healthcare"],"edu":"PharmD / BS Pharmacy"},
+    {"title":"Physiotherapist","industry":"Healthcare","salary":80000,"growth":18,"burnout":4,"automation":5,"wlb":7,"creativity":5,"social":9,"remote":3,"icon":"🏃","img":"https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80","skills":["Manual Therapy","Exercise Prescription","Anatomy","Patient Assessment","Rehabilitation"],"edu":"BS/MS Physiotherapy"},
+    {"title":"Dentist","industry":"Healthcare","salary":170000,"growth":8,"burnout":5,"automation":6,"wlb":6,"creativity":4,"social":8,"remote":1,"icon":"🦷","img":"https://images.unsplash.com/photo-1606811971618-4486d14f3f99?w=400&q=80","skills":["Oral Surgery","Diagnostics","Patient Care","Dental Procedures","Anatomy"],"edu":"BDS / DDS"},
+    {"title":"Investment Banker","industry":"Finance","salary":180000,"growth":8,"burnout":9,"automation":25,"wlb":2,"creativity":4,"social":7,"remote":4,"icon":"💹","img":"https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=400&q=80","skills":["Financial Modeling","Excel","Valuation","M&A","Risk Analysis"],"edu":"BS Finance / MBA"},
+    {"title":"Financial Analyst","industry":"Finance","salary":85000,"growth":11,"burnout":5,"automation":28,"wlb":6,"creativity":4,"social":5,"remote":6,"icon":"📈","img":"https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&q=80","skills":["Excel","Financial Modeling","Data Analysis","Forecasting","Bloomberg"],"edu":"BS Finance / CFA"},
+    {"title":"Accountant","industry":"Finance","salary":70000,"growth":7,"burnout":4,"automation":35,"wlb":7,"creativity":2,"social":4,"remote":6,"icon":"🧮","img":"https://images.unsplash.com/photo-1565514158740-064f34bd5fa5?w=400&q=80","skills":["Accounting","Tax Law","Excel","Auditing","QuickBooks"],"edu":"BS Accounting / CPA"},
+    {"title":"Marketing Manager","industry":"Marketing","salary":95000,"growth":15,"burnout":5,"automation":18,"wlb":6,"creativity":8,"social":7,"remote":7,"icon":"📣","img":"https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&q=80","skills":["Digital Marketing","SEO","Analytics","Content Strategy","Brand Management"],"edu":"BS Marketing / Communications"},
+    {"title":"Content Creator","industry":"Marketing","salary":65000,"growth":20,"burnout":4,"automation":15,"wlb":8,"creativity":10,"social":6,"remote":10,"icon":"🎬","img":"https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=400&q=80","skills":["Video Editing","Copywriting","Social Media","SEO","Brand Storytelling"],"edu":"BS Communications / Self-Taught"},
+    {"title":"Mechanical Engineer","industry":"Engineering","salary":90000,"growth":7,"burnout":5,"automation":20,"wlb":6,"creativity":5,"social":4,"remote":4,"icon":"⚙️","img":"https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=400&q=80","skills":["CAD","Thermodynamics","Materials Science","Project Management","AutoCAD"],"edu":"BS Mechanical Engineering"},
+    {"title":"Civil Engineer","industry":"Engineering","salary":85000,"growth":8,"burnout":5,"automation":12,"wlb":6,"creativity":4,"social":5,"remote":3,"icon":"🏗️","img":"https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400&q=80","skills":["Structural Analysis","AutoCAD","Project Management","Surveying","Materials"],"edu":"BS Civil Engineering"},
+    {"title":"Professor","industry":"Education","salary":90000,"growth":10,"burnout":4,"automation":8,"wlb":8,"creativity":7,"social":8,"remote":5,"icon":"🎓","img":"https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&q=80","skills":["Research","Teaching","Academic Writing","Curriculum Design","Subject Expertise"],"edu":"PhD in Relevant Field"},
     {"title":"High School Teacher","industry":"Education","salary":50000,"growth":8,"burnout":5,"automation":8,"wlb":7,"creativity":6,"social":8,"remote":4,"icon":"🏫","img":"https://images.unsplash.com/photo-1509062522246-3755977927d7?w=400&q=80","skills":["Curriculum Design","Classroom Management","Communication","Mentoring","Subject Expertise"],"edu":"BS Education + Teaching Cert"},
+    {"title":"Architect","industry":"Design","salary":80000,"growth":12,"burnout":6,"automation":12,"wlb":5,"creativity":9,"social":5,"remote":4,"icon":"🏛️","img":"https://images.unsplash.com/photo-1486325212027-8081e485255e?w=400&q=80","skills":["AutoCAD","SketchUp","BIM","Design Theory","Project Management"],"edu":"B.Arch / M.Arch"},
+    {"title":"Psychologist","industry":"Healthcare","salary":90000,"growth":22,"burnout":5,"automation":3,"wlb":7,"creativity":5,"social":10,"remote":6,"icon":"🧠","img":"https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&q=80","skills":["Counseling","CBT","Assessment","Research","Empathy"],"edu":"BS/MS/PhD Psychology"},
+    {"title":"Lawyer","industry":"Legal","salary":130000,"growth":9,"burnout":7,"automation":10,"wlb":4,"creativity":5,"social":7,"remote":5,"icon":"⚖️","img":"https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=400&q=80","skills":["Legal Research","Contract Law","Litigation","Negotiation","Critical Thinking"],"edu":"LLB / JD"},
+    {"title":"Surgeon","industry":"Healthcare","salary":350000,"growth":15,"burnout":9,"automation":3,"wlb":2,"creativity":3,"social":6,"remote":1,"icon":"⚕️","img":"https://images.unsplash.com/photo-1551190822-a9333d879b1f?w=400&q=80","skills":["Surgical Techniques","Anatomy","Clinical Decision-Making","Patient Care","Medical Research"],"edu":"MBBS + MS Surgery + Fellowship"},
+    {"title":"Environmental Scientist","industry":"Science","salary":75000,"growth":14,"burnout":4,"automation":12,"wlb":7,"creativity":6,"social":5,"remote":5,"icon":"🌿","img":"https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&q=80","skills":["Environmental Analysis","Data Collection","GIS","Research","Policy Writing"],"edu":"BS Environmental Science"},
+    {"title":"Journalist","industry":"Media","salary":55000,"growth":5,"burnout":6,"automation":30,"wlb":5,"creativity":8,"social":7,"remote":7,"icon":"📰","img":"https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=400&q=80","skills":["Writing","Research","Interviewing","Storytelling","Media Ethics"],"edu":"BS Journalism"},
 ]
 
 def h(html): st.markdown(html, unsafe_allow_html=True)
@@ -140,11 +140,11 @@ def score_resume(text):
 def pbar(label,val,mx,color="#1d4ed8",suf=""):
     pct=min(100,round((val/mx)*100)) if mx else 0
     d=suf if suf else str(val)
-    return f"""<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+    return f'''<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
 <span style="font-size:12px;font-weight:600;color:#1E293B;min-width:148px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{label}</span>
 <div style="flex:1;height:7px;background:#E2E8F0;border-radius:99px;overflow:hidden;">
 <div style="width:{pct}%;height:7px;background:{color};border-radius:99px;transition:width .6s;"></div></div>
-<span style="font-size:12px;font-weight:800;color:{color};min-width:54px;text-align:right;font-family:'Plus Jakarta Sans',sans-serif;">{d}</span></div>"""
+<span style="font-size:12px;font-weight:800;color:{color};min-width:54px;text-align:right;font-family:'Plus Jakarta Sans',sans-serif;">{d}</span></div>'''
 
 def badge(t,cls="blue"):
     m={"blue":("#eff6ff","#1d4ed8","#bfdbfe"),"teal":("#ecfeff","#0891b2","#a5f3fc"),
@@ -156,43 +156,27 @@ def badge(t,cls="blue"):
 def chip(t):
     return f'<span style="background:#f0f7ff;border:1.5px solid #bfdbfe;border-radius:7px;padding:3px 10px;font-size:11px;font-weight:600;color:#1d4ed8;margin:2px;display:inline-block;">{t}</span>'
 
+
 # ── PAGE CONFIG ──
-_pub = st.session_state.page in ("landing","login","signup")
-st.set_page_config(page_title="PathFinder AI",page_icon="🧭",layout="wide",
-                   initial_sidebar_state="auto")
+st.set_page_config(page_title="PathFinder AI",page_icon="🧭",layout="wide",initial_sidebar_state="auto")
 pg = st.session_state.page
 
-# Hide sidebar on public pages
+# Hide sidebar + controls on public pages
 if pg in ("landing","login","signup"):
     h("""<style>
 section[data-testid="stSidebar"]{display:none!important;}
 [data-testid="collapsedControl"]{display:none!important;}
 </style>""")
 
-# ══════════════════════════════════════════════════════════════
-# GLOBAL CSS — Beautiful Blue/White Modern Tech Theme
-# ══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════
+# GLOBAL CSS
+# ══════════════════════════════════════════════════════
 h("""<style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Syne:wght@700;800;900&display=swap');
-
-:root{
-  --P:#1d4ed8;--S:#2563eb;--A:#60a5fa;
-  --bg:#f0f7ff;--card:#ffffff;--border:#bfdbfe;
-  --text:#0f172a;--muted:#64748b;--navy:#0f172a;
-}
-
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Syne:wght@700;800;900&display=swap');
+:root{--P:#1d4ed8;--S:#2563eb;--A:#60a5fa;--bg:#f0f7ff;--card:#fff;--border:#bfdbfe;--text:#0f172a;--muted:#64748b;}
 *,*::before,*::after{box-sizing:border-box;}
-
-html,body,[data-testid="stAppViewContainer"],[data-testid="stMain"]{
-  background:var(--bg)!important;
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  color:var(--text)!important;
-}
-
-#MainMenu,footer,header,[data-testid="stHeader"],
-[data-testid="stToolbar"],[data-testid="stDecoration"]{
-  visibility:hidden!important;display:none!important;
-}
+html,body,[data-testid="stAppViewContainer"],[data-testid="stMain"]{background:var(--bg)!important;font-family:'Plus Jakarta Sans',sans-serif!important;color:var(--text)!important;}
+#MainMenu,footer,header,[data-testid="stHeader"],[data-testid="stToolbar"],[data-testid="stDecoration"]{visibility:hidden!important;display:none!important;}
 [data-testid="stSidebarNav"]{display:none!important;}
 .block-container{padding:0!important;max-width:100%!important;}
 [data-testid="stMainBlockContainer"]{padding:0!important;}
@@ -201,36 +185,37 @@ section[data-testid="stSidebar"]>div:first-child{padding:0!important;}
 
 /* ── SIDEBAR ── */
 section[data-testid="stSidebar"]{
-  background:linear-gradient(180deg,#060c24 0%,#0a1240 40%,#0f1a4e 70%,#1a2d7a 100%)!important;
-  border-right:1px solid rgba(37,99,235,.3)!important;
+  background:linear-gradient(180deg,#04081a 0%,#070d2e 30%,#0b1540 60%,#112058 100%)!important;
+  border-right:1px solid rgba(96,165,250,.15)!important;
   min-width:256px!important;
 }
 section[data-testid="stSidebar"] .stButton>button{
-  background:transparent!important;color:rgba(148,197,253,.55)!important;
-  border:1px solid transparent!important;border-radius:11px!important;
+  background:transparent!important;
+  color:rgba(148,197,253,.6)!important;
+  border:1px solid transparent!important;
+  border-radius:10px!important;
   font-size:13px!important;font-weight:600!important;text-align:left!important;
-  padding:9px 14px 9px 18px!important;width:100%!important;
+  padding:10px 14px 10px 16px!important;width:100%!important;
   font-family:'Plus Jakarta Sans',sans-serif!important;
-  transition:all .22s ease!important;margin-bottom:3px!important;
-  box-shadow:none!important;position:relative!important;
+  transition:all .22s cubic-bezier(.34,1.56,.64,1)!important;
+  margin-bottom:2px!important;position:relative!important;
+  letter-spacing:.1px!important;
 }
 section[data-testid="stSidebar"] .stButton>button:hover{
-  background:rgba(37,99,235,.22)!important;color:#e0eaff!important;
-  border-color:rgba(96,165,250,.35)!important;transform:translateX(6px)!important;
-  box-shadow:0 2px 16px rgba(29,78,216,.2)!important;
-  padding-left:22px!important;
+  background:linear-gradient(90deg,rgba(29,78,216,.28),rgba(29,78,216,.10))!important;
+  color:#c7dcff!important;
+  border-color:rgba(96,165,250,.4)!important;
+  transform:translateX(7px)!important;
+  box-shadow:0 3px 18px rgba(29,78,216,.25),inset 3px 0 0 rgba(96,165,250,.7)!important;
+  padding-left:20px!important;
+}
+section[data-testid="stSidebar"] .stButton>button:active{
+  transform:translateX(4px) scale(.98)!important;
 }
 section[data-testid="stSidebar"] .stButton>button:focus{
-  background:rgba(29,78,216,.3)!important;color:white!important;
-  border-color:rgba(96,165,250,.6)!important;
-  box-shadow:0 0 0 2px rgba(96,165,250,.25),0 4px 18px rgba(29,78,216,.3)!important;
-}
-/* Active page indicator via JS class */
-section[data-testid="stSidebar"] .sb-active button{
-  background:linear-gradient(90deg,rgba(29,78,216,.35),rgba(29,78,216,.15))!important;
-  color:white!important;border-color:rgba(96,165,250,.45)!important;
-  box-shadow:inset 3px 0 0 #60a5fa,0 2px 14px rgba(29,78,216,.25)!important;
-  font-weight:800!important;
+  outline:none!important;
+  box-shadow:0 0 0 2px rgba(96,165,250,.35),inset 3px 0 0 #60a5fa!important;
+  color:white!important;
 }
 
 /* ── TABS ── */
@@ -243,291 +228,437 @@ section[data-testid="stSidebar"] .sb-active button{
 
 /* ── INPUTS ── */
 input[type=range]{accent-color:var(--P);}
-.stButton>button{
-  font-family:'Plus Jakarta Sans',sans-serif!important;font-weight:700!important;
-  border-radius:10px!important;transition:all .2s!important;
-}
+.stButton>button{font-family:'Plus Jakarta Sans',sans-serif!important;font-weight:700!important;border-radius:10px!important;transition:all .2s!important;}
 .stButton>button:hover{transform:translateY(-2px)!important;box-shadow:0 6px 20px rgba(29,78,216,.28)!important;}
-.stTextInput>div>div>input,.stNumberInput>div>div>input{
-  background:#f8faff!important;border:2px solid #bfdbfe!important;border-radius:10px!important;
-  font-family:'Plus Jakarta Sans',sans-serif!important;color:var(--text)!important;
-  transition:border-color .2s,box-shadow .2s!important;font-weight:500!important;
-}
-.stTextInput>div>div>input:focus,.stNumberInput>div>div>input:focus{
-  border-color:var(--P)!important;box-shadow:0 0 0 3px rgba(29,78,216,.12)!important;
-}
-.stSelectbox>div>div{
-  background:#f8faff!important;border:2px solid #bfdbfe!important;border-radius:10px!important;
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-}
-.stTextArea>div>div>textarea{
-  background:#f8faff!important;border:2px solid #bfdbfe!important;border-radius:10px!important;
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-}
-label{
-  font-family:'Plus Jakarta Sans',sans-serif!important;font-weight:700!important;
-  color:#1d4ed8!important;font-size:12px!important;letter-spacing:.3px!important;
-}
-.stFileUploader>div{
-  background:#f8faff!important;border:2px dashed #bfdbfe!important;border-radius:12px!important;
-}
+.stTextInput>div>div>input,.stNumberInput>div>div>input{background:#f8faff!important;border:2px solid #bfdbfe!important;border-radius:10px!important;font-family:'Plus Jakarta Sans',sans-serif!important;color:var(--text)!important;transition:border-color .2s,box-shadow .2s!important;font-weight:500!important;}
+.stTextInput>div>div>input:focus,.stNumberInput>div>div>input:focus{border-color:var(--P)!important;box-shadow:0 0 0 3px rgba(29,78,216,.12)!important;}
+.stSelectbox>div>div{background:#f8faff!important;border:2px solid #bfdbfe!important;border-radius:10px!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
+.stTextArea>div>div>textarea{background:#f8faff!important;border:2px solid #bfdbfe!important;border-radius:10px!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
+label{font-family:'Plus Jakarta Sans',sans-serif!important;font-weight:700!important;color:#1d4ed8!important;font-size:12px!important;letter-spacing:.3px!important;}
+.stFileUploader>div{background:#f8faff!important;border:2px dashed #bfdbfe!important;border-radius:12px!important;}
 
 /* ── CARDS ── */
 .pf-card{
-  background:white;border-radius:16px;padding:20px;
+  background:white;border-radius:18px;padding:22px;
   border:1.5px solid #e0efff;
-  box-shadow:0 2px 18px rgba(29,78,216,.06);
-  margin-bottom:16px;transition:border-color .25s,box-shadow .25s;
+  box-shadow:0 4px 24px rgba(29,78,216,.07);
+  margin-bottom:16px;
+  transition:border-color .3s,box-shadow .3s,transform .3s;
+  position:relative;overflow:hidden;
 }
-.pf-card:hover{border-color:#bfdbfe;box-shadow:0 6px 28px rgba(29,78,216,.1);}
+.pf-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(96,165,250,.4),transparent);
+  opacity:0;transition:opacity .3s;
+}
+.pf-card:hover{
+  border-color:#93c5fd;
+  box-shadow:0 12px 40px rgba(29,78,216,.13);
+  transform:translateY(-2px);
+}
+.pf-card:hover::before{opacity:1;}
 
 .stat-card{
-  background:white;border-radius:14px;padding:18px;
+  background:white;border-radius:16px;padding:20px;
   border:1.5px solid #e0efff;text-align:center;
-  transition:all .3s;margin-bottom:16px;
+  transition:all .3s cubic-bezier(.34,1.56,.64,1);
+  margin-bottom:16px;position:relative;overflow:hidden;
 }
-.stat-card:hover{transform:translateY(-4px);border-color:#1d4ed8;box-shadow:0 12px 32px rgba(29,78,216,.12);}
+.stat-card::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,#1d4ed8,#60a5fa,#7c3aed);
+  transform:scaleX(0);transition:transform .3s;transform-origin:left;
+}
+.stat-card:hover{
+  transform:translateY(-6px);
+  border-color:#93c5fd;
+  box-shadow:0 16px 40px rgba(29,78,216,.15);
+}
+.stat-card:hover::after{transform:scaleX(1);}
 
 .match-card{
-  background:white;border:1.5px solid #e0efff;border-radius:16px;
-  padding:18px;margin-bottom:14px;position:relative;overflow:hidden;
-  transition:all .3s;box-shadow:0 2px 12px rgba(29,78,216,.04);
+  background:white;border:1.5px solid #e0efff;border-radius:18px;
+  padding:20px;margin-bottom:16px;position:relative;overflow:hidden;
+  transition:all .3s;box-shadow:0 4px 16px rgba(29,78,216,.05);
 }
-.match-card:hover{transform:translateY(-4px);box-shadow:0 14px 36px rgba(29,78,216,.12);border-color:#bfdbfe;}
-.match-card.gold-pick::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#1d4ed8,#60a5fa);}
+.match-card:hover{
+  transform:translateY(-5px);
+  box-shadow:0 20px 48px rgba(29,78,216,.14);
+  border-color:#93c5fd;
+}
+.match-card.gold-pick{
+  border-color:#93c5fd;
+  box-shadow:0 6px 28px rgba(29,78,216,.12);
+}
+.match-card.gold-pick::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:4px;
+  background:linear-gradient(90deg,#1d4ed8,#60a5fa,#7c3aed);
+}
 
 .qs-card{
-  background:white;border-radius:14px;padding:16px 12px;
-  border:1.5px solid #e0efff;text-align:center;transition:all .28s;margin-bottom:14px;
+  background:white;border-radius:16px;padding:18px 14px;
+  border:1.5px solid #e0efff;text-align:center;
+  transition:all .3s cubic-bezier(.34,1.56,.64,1);margin-bottom:14px;
+  position:relative;overflow:hidden;
 }
-.qs-card:hover{transform:translateY(-5px);box-shadow:0 12px 28px rgba(29,78,216,.1);}
+.qs-card:hover{
+  transform:translateY(-6px);
+  box-shadow:0 16px 36px rgba(29,78,216,.12);
+  border-color:#93c5fd;
+}
 
 .tl-body{
-  background:white;border:1.5px solid #e0efff;border-radius:13px;
-  padding:13px 17px;flex:1;margin-bottom:13px;transition:all .25s;
+  background:white;border:1.5px solid #e0efff;border-radius:14px;
+  padding:14px 18px;flex:1;margin-bottom:13px;transition:all .28s;
+  box-shadow:0 2px 10px rgba(29,78,216,.04);
 }
-.tl-body:hover{border-color:#bfdbfe;transform:translateX(5px);box-shadow:0 6px 22px rgba(29,78,216,.09);}
+.tl-body:hover{
+  border-color:#93c5fd;
+  transform:translateX(6px);
+  box-shadow:0 8px 28px rgba(29,78,216,.1);
+}
 
-.inst-card{border-radius:13px;overflow:hidden;border:1.5px solid #e0efff;transition:all .26s;}
-.inst-card:hover{transform:translateY(-4px);box-shadow:0 14px 36px rgba(29,78,216,.13);border-color:#bfdbfe;}
+.inst-card{border-radius:14px;overflow:hidden;border:1.5px solid #e0efff;transition:all .3s;}
+.inst-card:hover{transform:translateY(-5px);box-shadow:0 18px 44px rgba(29,78,216,.14);border-color:#93c5fd;}
 
 /* ── TOPBAR ── */
 .topbar{
-  position:sticky;top:0;background:rgba(240,247,255,.97);
-  backdrop-filter:blur(20px);z-index:100;padding:11px 26px;
-  border-bottom:1.5px solid #bfdbfe;display:flex;
-  align-items:center;justify-content:space-between;
-  box-shadow:0 2px 18px rgba(29,78,216,.07);
+  position:sticky;top:0;
+  background:rgba(248,252,255,.96);
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  z-index:100;padding:10px 28px;
+  border-bottom:1.5px solid rgba(191,219,254,.7);
+  display:flex;align-items:center;justify-content:space-between;
+  box-shadow:0 2px 24px rgba(29,78,216,.08);
 }
 
-/* ── AUTH CARD ── */
+/* ── AUTH ── */
+.auth-page-bg{
+  min-height:100vh;
+  background:linear-gradient(145deg,#eef4ff 0%,#e8f0fe 40%,#dbeafe 70%,#f0f4ff 100%);
+  display:flex;align-items:center;justify-content:center;
+  padding:40px 20px;
+  position:relative;overflow:hidden;
+}
+.auth-page-bg::before{
+  content:'';position:absolute;top:-150px;right:-150px;
+  width:500px;height:500px;border-radius:50%;
+  background:radial-gradient(circle,rgba(96,165,250,.2),transparent 70%);
+  pointer-events:none;
+}
+.auth-page-bg::after{
+  content:'';position:absolute;bottom:-120px;left:-120px;
+  width:450px;height:450px;border-radius:50%;
+  background:radial-gradient(circle,rgba(167,139,250,.15),transparent 70%);
+  pointer-events:none;
+}
 .auth-wrap{
-  background:white;border-radius:22px;padding:40px 44px;
-  border:1.5px solid #bfdbfe;box-shadow:0 8px 48px rgba(29,78,216,.1);
+  background:rgba(255,255,255,.97);
+  border-radius:24px;padding:44px 48px;
+  border:1.5px solid rgba(191,219,254,.8);
+  box-shadow:0 16px 64px rgba(29,78,216,.14),0 4px 16px rgba(29,78,216,.08);
+  position:relative;z-index:1;
+  backdrop-filter:blur(10px);
+  width:100%;
+}
+.auth-wrap::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:4px;
+  background:linear-gradient(90deg,#1d4ed8,#60a5fa,#7c3aed);
+  border-radius:24px 24px 0 0;
 }
 .li-btn{
   display:flex;align-items:center;justify-content:center;gap:10px;
   background:white;color:#0a66c2;border:2px solid #0a66c2;
-  border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;
+  border-radius:11px;padding:11px 16px;font-size:13px;font-weight:700;
   cursor:pointer;width:100%;margin-top:12px;
   font-family:'Plus Jakarta Sans',sans-serif;transition:all .22s;
+  box-shadow:0 2px 8px rgba(10,102,194,.1);
 }
-.li-btn:hover{background:#0a66c2;color:white;box-shadow:0 6px 20px rgba(10,102,194,.28);}
-.pw-rule{font-size:11px;color:#64748b;margin-top:4px;padding:6px 10px;background:#f0f7ff;border-radius:7px;border-left:3px solid #bfdbfe;}
+.li-btn:hover{background:#0a66c2;color:white;box-shadow:0 6px 22px rgba(10,102,194,.32);transform:translateY(-2px);}
+.pw-rule{font-size:11px;color:#64748b;margin-top:4px;padding:7px 12px;background:#f0f7ff;border-radius:8px;border-left:3px solid #93c5fd;}
 
-/* ── PUBLIC PAGE BUTTONS — Blue + White ── */
+/* ── BUTTONS ── */
 .stButton>button{
   background:linear-gradient(135deg,#1d4ed8,#2563eb)!important;
   color:white!important;border:none!important;
   font-family:'Plus Jakarta Sans',sans-serif!important;
   font-weight:700!important;font-size:13.5px!important;
-  border-radius:10px!important;cursor:pointer!important;
-  transition:all .2s!important;
-  box-shadow:0 3px 14px rgba(29,78,216,.3)!important;
+  border-radius:11px!important;cursor:pointer!important;
+  transition:all .22s cubic-bezier(.34,1.56,.64,1)!important;
+  box-shadow:0 4px 16px rgba(29,78,216,.32)!important;
+  letter-spacing:.1px!important;
 }
 .stButton>button:hover{
   background:linear-gradient(135deg,#1e40af,#1d4ed8)!important;
-  color:white!important;transform:translateY(-2px)!important;
-  box-shadow:0 7px 22px rgba(29,78,216,.45)!important;
-  cursor:pointer!important;
+  color:white!important;transform:translateY(-3px) scale(1.01)!important;
+  box-shadow:0 10px 28px rgba(29,78,216,.5)!important;
 }
-@keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+.stButton>button:active{transform:translateY(-1px) scale(.99)!important;}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes scaleIn{from{opacity:0;transform:scale(.94);}to{opacity:1;transform:scale(1);}}
 @keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
-@keyframes pulseRing{0%,100%{box-shadow:0 6px 28px rgba(29,78,216,.55);}50%{box-shadow:0 6px 38px rgba(29,78,216,.8),0 0 0 12px rgba(29,78,216,.12);}}
-@keyframes slideUp{from{opacity:0;transform:translateY(30px);}to{opacity:1;transform:translateY(0);}}
-.fu{animation:fadeUp .45s ease both;}
+@keyframes shimmer{0%{background-position:-200% 0;}100%{background-position:200% 0;}}
+@keyframes pulseRing{0%,100%{box-shadow:0 6px 28px rgba(29,78,216,.55),0 0 0 0 rgba(29,78,216,.3);}70%{box-shadow:0 6px 28px rgba(29,78,216,.55),0 0 0 14px rgba(29,78,216,0);}}
+@keyframes chatSlide{from{opacity:0;transform:translateY(20px) scale(.95);}to{opacity:1;transform:translateY(0) scale(1);}}
+@keyframes dot1{0%,80%,100%{opacity:0;}40%{opacity:1;}}
+@keyframes dot2{0%,20%,100%{opacity:0;}60%{opacity:1;}}
+@keyframes dot3{0%,40%,100%{opacity:0;}80%{opacity:1;}}
+@keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-10px);}}
+.fu{animation:fadeUp .5s cubic-bezier(.22,1,.36,1) both;}
+.fi{animation:fadeIn .4s ease both;}
+.si{animation:scaleIn .4s cubic-bezier(.34,1.56,.64,1) both;}
+
+/* ── SKELETON / SHIMMER ── */
+.shimmer{
+  background:linear-gradient(90deg,#f0f4ff 25%,#dbeafe 50%,#f0f4ff 75%);
+  background-size:200% 100%;animation:shimmer 1.8s infinite;
+  border-radius:8px;
+}
 
 /* ── CHAT MESSAGES ── */
 .pmsg-ai{
-  background:white;border:1.5px solid #e0efff;border-radius:14px 14px 14px 3px;
-  padding:10px 14px;font-size:12.5px;line-height:1.75;color:#0f172a;
-  max-width:88%;box-shadow:0 2px 8px rgba(29,78,216,.06);
+  background:white;border:1.5px solid #dbeafe;
+  border-radius:16px 16px 16px 4px;
+  padding:11px 15px;font-size:12.5px;line-height:1.78;color:#0f172a;
+  max-width:88%;box-shadow:0 3px 12px rgba(29,78,216,.07);
+  animation:fadeUp .3s ease;
 }
 .pmsg-user{
   background:linear-gradient(135deg,#1d4ed8,#2563eb);
-  border-radius:14px 14px 3px 14px;padding:10px 14px;
-  font-size:12.5px;line-height:1.75;color:white;
+  border-radius:16px 16px 4px 16px;
+  padding:11px 15px;font-size:12.5px;line-height:1.78;color:white;
   max-width:88%;align-self:flex-end;
+  box-shadow:0 4px 16px rgba(29,78,216,.35);
+  animation:fadeUp .3s ease;
 }
 
+/* ── PROGRESS BARS ── */
+.prog-wrap{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
+.prog-track{flex:1;height:8px;background:#e8f0fe;border-radius:99px;overflow:hidden;}
+.prog-fill{height:8px;border-radius:99px;transition:width .8s cubic-bezier(.22,1,.36,1);}
 
-</style>""")
+/* ── SECTION HEADERS ── */
+.sec-hdr{
+  font-family:'Syne',sans-serif;font-size:20px;font-weight:900;
+  color:#0f172a;letter-spacing:-.5px;margin-bottom:16px;
+  display:flex;align-items:center;gap:10px;
+}
+.sec-hdr::after{
+  content:'';flex:1;height:1.5px;
+  background:linear-gradient(90deg,#bfdbfe,transparent);
+  border-radius:99px;
+}
 
+/* ── TOOLTIP BADGE ── */
+.tip-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  background:linear-gradient(135deg,#eff6ff,#dbeafe);
+  border:1.5px solid #bfdbfe;border-radius:99px;
+  padding:4px 12px;font-size:10.5px;font-weight:800;
+  color:#1d4ed8;letter-spacing:.5px;
+}
 
-# ═══════════════════════════════════════════════════════════
-# CHATBOT CSS — always injected (used on landing)
-# ═══════════════════════════════════════════════════════════
-h("""<style>
-#pf-fab{
-  position:fixed;bottom:26px;right:26px;z-index:99999;
-  width:62px;height:62px;border-radius:50%;
-  background:linear-gradient(135deg,#1d4ed8,#2563eb);
-  box-shadow:0 6px 28px rgba(29,78,216,.65);
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;font-size:27px;border:3px solid rgba(255,255,255,.25);
-  transition:transform .2s;animation:pulseRing 2.6s infinite;
-}
-#pf-fab:hover{transform:scale(1.12);}
-#pf-dot{
-  position:absolute;top:-2px;right:-2px;width:14px;height:14px;
-  background:#22c55e;border-radius:50%;border:2.5px solid white;
-}
-#pf-win{
-  position:fixed;bottom:104px;right:26px;z-index:99998;
-  width:352px;background:white;border-radius:22px;
-  box-shadow:0 16px 56px rgba(29,78,216,.22);
-  border:1.5px solid #bfdbfe;
-  flex-direction:column;overflow:hidden;
-  font-family:'Plus Jakarta Sans',sans-serif;
-  opacity:0;transform:translateY(20px);
-  transition:opacity .25s ease,transform .25s ease;
-  display:none;
-}
-#pf-win.open{display:flex;}
-#pf-win.visible{opacity:1;transform:translateY(0);}
-#pf-hdr{
-  background:linear-gradient(135deg,#0f172a,#1e3a8a,#1d4ed8);
-  padding:13px 15px;display:flex;align-items:center;gap:10px;flex-shrink:0;
-}
-#pf-msgs{
-  padding:12px;min-height:180px;max-height:270px;overflow-y:auto;
-  display:flex;flex-direction:column;gap:8px;background:#f8faff;
-  flex:1;
-}
+/* ── FLOATING CHATBOT (injected into body) ── */
+#pf-fab{position:fixed!important;bottom:28px!important;right:28px!important;z-index:2147483647!important;width:62px;height:62px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#3b82f6);display:flex!important;align-items:center;justify-content:center;cursor:pointer;font-size:26px;border:3px solid rgba(255,255,255,.3);transition:transform .22s;user-select:none;animation:pulseRing 2.6s infinite;}
+#pf-fab:hover{transform:scale(1.13)!important;animation:none!important;}
+#pf-dot{position:absolute;top:-2px;right:-2px;width:15px;height:15px;background:#22c55e;border-radius:50%;border:2.5px solid white;}
+#pf-lbl{position:fixed!important;bottom:38px!important;right:104px!important;z-index:2147483646!important;background:#0f172a;color:white;font-size:11.5px;font-weight:700;padding:7px 13px;border-radius:9px;white-space:nowrap;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.35);font-family:'Plus Jakarta Sans',sans-serif;}
+#pf-lbl::after{content:"";position:absolute;right:-5px;top:50%;transform:translateY(-50%);width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:6px solid #0f172a;}
+#pf-fab:hover+#pf-lbl{opacity:1!important;}
+#pf-win{position:fixed!important;bottom:106px!important;right:28px!important;z-index:2147483645!important;width:358px;background:white;border-radius:22px;box-shadow:0 20px 64px rgba(29,78,216,.22);border:1.5px solid #bfdbfe;flex-direction:column;overflow:hidden;display:none;}
+#pf-win.pf-open{display:flex!important;animation:chatSlide .3s cubic-bezier(.34,1.56,.64,1);}
+#pf-hdr{background:linear-gradient(135deg,#06091f,#1a3370,#1d4ed8);padding:13px 15px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+#pf-msgs{padding:12px;min-height:180px;max-height:270px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;background:#f8faff;flex:1;}
 #pf-msgs::-webkit-scrollbar{width:4px;}
 #pf-msgs::-webkit-scrollbar-thumb{background:#bfdbfe;border-radius:99px;}
-#pf-qs{
-  padding:7px 10px;background:white;
-  border-top:1px solid #e8f0fe;
-  display:flex;flex-wrap:wrap;gap:5px;flex-shrink:0;
-}
-.pq{
-  background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:99px;
-  padding:4px 11px;font-size:10.5px;font-weight:700;color:#1d4ed8;
-  cursor:pointer;transition:all .18s;font-family:'Plus Jakarta Sans',sans-serif;
-}
-.pq:hover{background:#1d4ed8;color:white;border-color:#1d4ed8;}
-#pf-inp-row{
-  padding:9px 10px;border-top:1.5px solid #e0efff;
-  display:flex;gap:7px;background:white;flex-shrink:0;
-}
-#pf-inp{
-  flex:1;border:1.5px solid #bfdbfe;border-radius:9px;
-  padding:8px 11px;font-size:12.5px;
-  font-family:'Plus Jakarta Sans',sans-serif;outline:none;
-  transition:border-color .2s;background:#f8faff;
-}
-#pf-inp:focus{border-color:#1d4ed8;background:white;}
-#pf-snd{
-  background:linear-gradient(135deg,#1d4ed8,#2563eb);color:white;border:none;
-  border-radius:9px;padding:8px 14px;font-size:12px;font-weight:700;
-  cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all .2s;
-  white-space:nowrap;
-}
-#pf-snd:hover{background:#0f172a;}
+#pf-qs{padding:7px 10px;background:white;border-top:1px solid #e8f0fe;display:flex;flex-wrap:wrap;gap:5px;flex-shrink:0;}
+.pq{background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:99px;padding:4px 11px;font-size:10.5px;font-weight:700;color:#1d4ed8;cursor:pointer;transition:all .18s;font-family:'Plus Jakarta Sans',sans-serif;}
+.pq:hover{background:#1d4ed8;color:white;border-color:#1d4ed8;transform:translateY(-2px);}
+#pf-inp-row{padding:9px 10px;border-top:1.5px solid #e0efff;display:flex;gap:7px;background:white;flex-shrink:0;}
+#pf-inp{flex:1;border:1.5px solid #bfdbfe;border-radius:9px;padding:8px 11px;font-size:12.5px;font-family:'Plus Jakarta Sans',sans-serif;outline:none;transition:border-color .2s;background:#f8faff;}
+#pf-inp:focus{border-color:#1d4ed8;background:white;box-shadow:0 0 0 3px rgba(29,78,216,.1);}
+#pf-snd{background:linear-gradient(135deg,#1d4ed8,#2563eb);color:white;border:none;border-radius:9px;padding:8px 16px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all .2s;white-space:nowrap;}
+#pf-snd:hover{background:#0f172a;transform:translateY(-1px);}
 </style>""")
 
-# ═══════════════════════════════════════════════════════════
-# PUBLIC NAV  (used on landing, login, signup)
-# ═══════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════
+# FLOATING CHATBOT — injected directly into <body>
+# Works on ALL pages (landing + dashboard)
+# ══════════════════════════════════════════════════════
+_gk = (GROQ_KEY or "").replace("'","").replace('"','')
+h(f"""<div id="pf-fab"><div id="pf-dot"></div></div>
+<div id="pf-lbl">Ask AI Career Advisor ✨</div>
+<div id="pf-win">
+  <div id="pf-hdr">
+    <div style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:20px;border:2px solid rgba(255,255,255,.2);">🧭</div>
+    <div style="flex:1;margin-left:2px;">
+      <div style="font-weight:800;font-size:14px;color:white;font-family:'Plus Jakarta Sans',sans-serif;">PathFinder AI</div>
+      <div style="font-size:10.5px;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:5px;margin-top:2px;font-family:'Plus Jakarta Sans',sans-serif;">
+        <span style="width:6px;height:6px;background:#22c55e;border-radius:50%;display:inline-block;animation:blink 1.5s infinite;"></span>Online · Career Guidance Only
+      </div>
+    </div>
+    <span id="pf-close" style="cursor:pointer;color:rgba(255,255,255,.6);font-size:20px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;transition:background .15s;line-height:1;" onmouseover="this.style.background='rgba(255,255,255,.13)'" onmouseout="this.style.background='transparent'">&#x2715;</span>
+  </div>
+  <div id="pf-msgs">
+    <div class="pmsg-ai">&#x1F44B; Hi! I'm PathFinder AI.<br>Ask me about careers, salaries, skills, or jobs! &#x1F680;</div>
+  </div>
+  <div id="pf-qs">
+    <span class="pq" onclick="pfQ('Best tech career 2025?')">Best tech career?</span>
+    <span class="pq" onclick="pfQ('High salary jobs?')">High salary?</span>
+    <span class="pq" onclick="pfQ('Remote careers?')">Remote careers?</span>
+    <span class="pq" onclick="pfQ('AI/ML skills to learn?')">AI/ML skills?</span>
+    <span class="pq" onclick="pfQ('Best careers in Pakistan?')">Pakistan careers?</span>
+    <span class="pq" onclick="pfQ('Freelancing guide for beginners?')">Freelancing?</span>
+  </div>
+  <div id="pf-inp-row">
+    <input id="pf-inp" placeholder="Ask about careers, salaries, skills..." onkeydown="if(event.key==='Enter')pfSend()">
+    <button id="pf-snd" onclick="pfSend()">Send ›</button>
+  </div>
+</div>
+<script>
+(function(){{
+  var gk='{_gk}';
+  var TIPS=['AI/ML Engineer — fastest growing, $135K+','UX Designer — creative + remote-friendly','Cloud Architect — $145K avg, 9/10 remote','Pakistan IT exports = earn USD remotely','Data Science: Python + SQL = career gold','Cybersecurity — massive demand, great WLB','Freelancing: start niche on Upwork/Fiverr','Remote careers open global opportunities'];
+  var fab=document.getElementById('pf-fab');
+  var win=document.getElementById('pf-win');
+  var close=document.getElementById('pf-close');
+  var isOpen=false;
+
+  // Make fab emoji visible
+  fab.innerHTML='&#x1F916;<div id="pf-dot"></div>';
+
+  function pfOpen(){{
+    isOpen=true;
+    win.classList.add('pf-open');
+    fab.innerHTML='<span style="font-size:22px;color:white;font-weight:200;line-height:1;">&#x2715;</span><div id="pf-dot" style="position:absolute;top:-2px;right:-2px;width:15px;height:15px;background:#22c55e;border-radius:50%;border:2.5px solid white;"></div>';
+    fab.style.animation='none';
+    fab.style.background='linear-gradient(135deg,#0f172a,#1e3a8a)';
+    var m=document.getElementById('pf-msgs'); if(m) m.scrollTop=9999;
+  }}
+  function pfClose(){{
+    isOpen=false;
+    win.classList.remove('pf-open');
+    fab.innerHTML='&#x1F916;<div id="pf-dot" style="position:absolute;top:-2px;right:-2px;width:15px;height:15px;background:#22c55e;border-radius:50%;border:2.5px solid white;"></div>';
+    fab.style.animation='pulseRing 2.6s infinite';
+    fab.style.background='linear-gradient(135deg,#1d4ed8,#3b82f6)';
+  }}
+  fab.addEventListener('click',function(){{ isOpen ? pfClose() : pfOpen(); }});
+  if(close) close.addEventListener('click',pfClose);
+
+  // Auto open once after delay
+  setTimeout(function(){{ if(!isOpen) pfOpen(); }}, 4000);
+
+  function pfAddMsg(txt,isUser){{
+    var m=document.getElementById('pf-msgs');
+    if(!m) return;
+    var d=document.createElement('div');
+    d.className=isUser?'pmsg-user':'pmsg-ai';
+    d.style.cssText=isUser?'align-self:flex-end;':'';
+    d.textContent=txt;
+    m.appendChild(d); m.scrollTop=9999;
+  }}
+  function pfTyping(){{
+    var m=document.getElementById('pf-msgs'); if(!m) return;
+    var d=document.createElement('div'); d.id='pf-typing'; d.className='pmsg-ai';
+    d.innerHTML='<span style="display:flex;gap:5px;align-items:center;"><span style="width:7px;height:7px;background:#94a3b8;border-radius:50%;animation:dot1 1.2s infinite;display:inline-block;"></span><span style="width:7px;height:7px;background:#94a3b8;border-radius:50%;animation:dot2 1.2s infinite;display:inline-block;"></span><span style="width:7px;height:7px;background:#94a3b8;border-radius:50%;animation:dot3 1.2s infinite;display:inline-block;"></span></span>';
+    m.appendChild(d); m.scrollTop=9999;
+  }}
+  function pfRmTyping(){{ var t=document.getElementById('pf-typing'); if(t)t.remove(); }}
+  function pfSend(){{
+    var inp=document.getElementById('pf-inp'); if(!inp) return;
+    var q=inp.value.trim(); if(!q) return;
+    inp.value=''; pfAddMsg(q,true); pfTyping();
+    if(gk){{
+      fetch('https://api.groq.com/openai/v1/chat/completions',{{
+        method:'POST',
+        headers:{{'Authorization':'Bearer '+gk,'Content-Type':'application/json'}},
+        body:JSON.stringify({{
+          model:'llama3-70b-8192',max_tokens:280,
+          messages:[
+            {{role:'system',content:'You are PathFinder AI — STRICT career guidance only. Only answer about careers, jobs, salaries, skills, education, freelancing, universities, professional development. For anything else reply: "I only help with career guidance. Ask a career question!" Keep answers concise (2-3 sentences max), practical, and actionable.'}},
+            {{role:'user',content:q}}
+          ]
+        }})
+      }}).then(r=>r.json()).then(d=>{{
+        pfRmTyping();
+        var txt=d.choices&&d.choices[0]?d.choices[0].message.content:'Career tip: '+TIPS[Math.floor(Math.random()*TIPS.length)];
+        pfAddMsg(txt,false);
+      }}).catch(()=>{{
+        pfRmTyping();
+        pfAddMsg('💡 '+TIPS[Math.floor(Math.random()*TIPS.length)],false);
+      }});
+    }}else{{
+      setTimeout(function(){{
+        pfRmTyping();
+        pfAddMsg('💡 '+TIPS[Math.floor(Math.random()*TIPS.length)]+'\n\n(Set GROQ_API_KEY in .env for live AI)',false);
+      }},800);
+    }}
+  }}
+  function pfQ(q){{ document.getElementById('pf-inp').value=q; pfSend(); }}
+  window.pfQ=pfQ;
+  window.pfSend=pfSend;
+}})();
+</script>""")
+
+# ══════════════════════════════════════════════════════
+# PUBLIC NAV
+# ══════════════════════════════════════════════════════
 def pub_nav(page_key=""):
     h(f"""<div style="position:sticky;top:0;z-index:8000;background:rgba(255,255,255,.97);
   backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
   height:64px;display:flex;align-items:center;justify-content:space-between;
   padding:0 3.5%;border-bottom:1.5px solid rgba(29,78,216,.11);
   box-shadow:0 2px 22px rgba(29,78,216,.07);font-family:'Plus Jakarta Sans',sans-serif;">
-  <!-- LOGO -->
   <div style="display:flex;align-items:center;gap:9px;flex-shrink:0;cursor:pointer;"
-    onclick="window.scrollTo({{top:0,behavior:'smooth'}})"
-    onmouseover="this.querySelector('span').style.color='#1d4ed8'"
-    onmouseout="this.querySelector('span').style.color='#0f172a'">
+    onclick="window.scrollTo({{top:0,behavior:'smooth'}})">
     <div style="width:36px;height:36px;background:linear-gradient(135deg,#1d4ed8,#60a5fa);
       border-radius:10px;display:flex;align-items:center;justify-content:center;
       font-size:18px;box-shadow:0 4px 14px rgba(29,78,216,.4);
       transition:transform .2s,box-shadow .2s;"
-      onmouseover="this.style.transform='rotate(-8deg) scale(1.12)';this.style.boxShadow='0 8px 24px rgba(29,78,216,.55)'"
-      onmouseout="this.style.transform='rotate(0) scale(1)';this.style.boxShadow='0 4px 14px rgba(29,78,216,.4)'">🧭</div>
-    <span style="font-size:20px;font-weight:900;color:#0f172a;letter-spacing:-.5px;transition:color .2s;">
+      onmouseover="this.style.transform='rotate(-8deg) scale(1.12)'"
+      onmouseout="this.style.transform='rotate(0) scale(1)'">🧭</div>
+    <span style="font-size:20px;font-weight:900;color:#0f172a;letter-spacing:-.5px;">
       PathFinder<span style="color:#1d4ed8;">.AI</span></span>
   </div>
-  <!-- CENTER LINKS -->
   <div style="display:flex;align-items:center;gap:3px;">
-    <a style="padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;
-      color:#64748b;cursor:pointer;transition:all .2s;text-decoration:none;
-      position:relative;overflow:hidden;"
+    <a style="padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;color:#64748b;cursor:pointer;transition:all .2s;text-decoration:none;"
       onmouseover="this.style.color='#1d4ed8';this.style.background='rgba(29,78,216,.07)';this.style.transform='translateY(-1px)'"
       onmouseout="this.style.color='#64748b';this.style.background='transparent';this.style.transform='translateY(0)'"
       onclick="window.scrollTo({{top:0,behavior:'smooth'}})">🏠 Home</a>
-    <a style="padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;
-      color:#64748b;cursor:pointer;transition:all .2s;text-decoration:none;
-      position:relative;overflow:hidden;"
+    <a style="padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;color:#64748b;cursor:pointer;transition:all .2s;text-decoration:none;"
       onmouseover="this.style.color='#1d4ed8';this.style.background='rgba(29,78,216,.07)';this.style.transform='translateY(-1px)'"
       onmouseout="this.style.color='#64748b';this.style.background='transparent';this.style.transform='translateY(0)'"
       onclick="var el=document.getElementById('feat-sec');if(el)el.scrollIntoView({{behavior:'smooth'}})">✨ Features</a>
-    <a style="padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;
-      color:#64748b;cursor:pointer;transition:all .2s;text-decoration:none;
-      position:relative;overflow:hidden;"
+    <a style="padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;color:#64748b;cursor:pointer;transition:all .2s;text-decoration:none;"
       onmouseover="this.style.color='#1d4ed8';this.style.background='rgba(29,78,216,.07)';this.style.transform='translateY(-1px)'"
       onmouseout="this.style.color='#64748b';this.style.background='transparent';this.style.transform='translateY(0)'"
-      onclick="var el=document.getElementById('steps-sec');if(el)el.scrollIntoView({{behavior:'smooth'}})">🔄 How It Works</a>
+      onclick="var el=document.getElementById('about-sec');if(el)el.scrollIntoView({{behavior:'smooth'}})">🔵 About</a>
   </div>
-  <!-- RIGHT PLACEHOLDER — buttons injected by Streamlit below -->
-  <div style="min-width:210px;display:flex;justify-content:flex-end;gap:8px;align-items:center;" id="nav-right-placeholder"></div>
+  <div style="min-width:210px;display:flex;justify-content:flex-end;gap:8px;align-items:center;" id="nav-rp"></div>
 </div>""")
-
-    # Streamlit nav buttons — styled blue, overlaid on nav right side via CSS
     h("""<style>
-/* Pull the very next horizontal block up into nav */
 div[data-testid="stHorizontalBlock"].pf-nav-row{
   margin-top:-50px!important;position:relative;z-index:8500;
   display:flex!important;justify-content:flex-end!important;
-  padding-right:3.5%!important;padding-top:0!important;
-  gap:8px!important;
+  padding-right:3.5%!important;padding-top:0!important;gap:8px!important;
 }
-div[data-testid="stHorizontalBlock"].pf-nav-row > div{
-  flex:0 0 auto!important;width:auto!important;min-width:0!important;
-  padding:0!important;
-}
-div[data-testid="stHorizontalBlock"].pf-nav-row button{
-  height:36px!important;min-width:90px!important;
-  padding:0 16px!important;font-size:12.5px!important;
-  white-space:nowrap!important;
-}
+div[data-testid="stHorizontalBlock"].pf-nav-row>div{flex:0 0 auto!important;width:auto!important;min-width:0!important;padding:0!important;}
+div[data-testid="stHorizontalBlock"].pf-nav-row button{height:36px!important;min-width:90px!important;padding:0 16px!important;font-size:12.5px!important;white-space:nowrap!important;}
 </style>""")
-    # Mark this block with a class via JS after render
-    _sp, _li, _jo = st.columns([5, .9, 1.1])
+    _sp,_li,_jo=st.columns([5,.9,1.1])
     with _li:
-        if st.button("🔐 Log In", key=f"nav_li_{page_key}", use_container_width=True):
-            st.session_state.page = "login"; st.rerun()
+        if st.button("🔐 Log In",key=f"nav_li_{page_key}",use_container_width=True):
+            st.session_state.page="login"; st.rerun()
     with _jo:
-        if st.button("🚀 Get Started", key=f"nav_jo_{page_key}", use_container_width=True):
-            st.session_state.page = "signup"; st.rerun()
-    # JS: add class to the last rendered horizontal block so CSS targets it
+        if st.button("🚀 Get Started",key=f"nav_jo_{page_key}",use_container_width=True):
+            st.session_state.page="signup"; st.rerun()
     h("""<script>
 (function(){
   var blocks=document.querySelectorAll('[data-testid="stHorizontalBlock"]');
   if(blocks.length>0){blocks[blocks.length-1].classList.add('pf-nav-row');}
-  // also apply after short delay for Streamlit re-renders
   setTimeout(function(){
     var b=document.querySelectorAll('[data-testid="stHorizontalBlock"]');
     if(b.length>0){b[b.length-1].classList.add('pf-nav-row');}
@@ -536,264 +667,27 @@ div[data-testid="stHorizontalBlock"].pf-nav-row button{
 </script>
 <div style="height:8px;"></div>""")
 
-
-"""PathFinder AI — Career Intelligence Platform | Fixed Version"""
-import streamlit as st, os, re, io, time, base64
-import streamlit.components.v1 as components
-
-# ── IMPORTS & CHECKS ──
-try:
-    from groq import Groq; GROQ_OK=True
-except: GROQ_OK=False
-try:
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.model_selection import cross_val_score, train_test_split
-    import numpy as np; ML_OK=True
-except:
-    ML_OK=False
-    import numpy as np
-try: import PyPDF2; PDF_OK=True
-except: PDF_OK=False
-try: import docx2txt; DOCX_OK=True
-except: DOCX_OK=False
-
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except: pass
-
-GROQ_KEY = os.getenv("GROQ_API_KEY","")
-
-# ── PAGE CONFIG (Must be first) ──
-st.set_page_config(
-    page_title="PathFinder AI", 
-    page_icon="🧭", 
-    layout="wide",
-    initial_sidebar_state="auto"
-)
-
-# ── INITIALIZATION ──
-def init():
-    for k,v in {
-        "page":"landing","logged_in":False,"current_user":None,"accounts":{},
-        "app_page":"home","profile":{},"matches":[],"chat_hist":[],
-        "roadmap_txt":"","inst_result":"","resume_result":None,
-        "train_done":False,"sel_career":"UX Designer","train_results":None,
-        "roadmap_mode":"education"
-    }.items():
-        if k not in st.session_state: st.session_state[k]=v
-init()
-
-# ── CAREER DATA ──
-CAREERS=[
-    {"title":"UX Designer","industry":"Technology","salary":90000,"growth":20,"burnout":3,"automation":15,"wlb":8,"creativity":9,"social":6,"remote":8,"icon":"🎨","img":"https://images.unsplash.com/photo-1561070791-2526d30994b5?w=400&q=80","skills":["Figma","User Research","Prototyping","CSS","Wireframing"],"edu":"BS Design / HCI"},
-    {"title":"Software Engineer","industry":"Technology","salary":110000,"growth":25,"burnout":4,"automation":20,"wlb":7,"creativity":6,"social":4,"remote":9,"icon":"💻","img":"https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=400&q=80","skills":["Python","JavaScript","System Design","Algorithms","Git"],"edu":"BS Computer Science"},
-    {"title":"Data Scientist","industry":"Technology","salary":120000,"growth":35,"burnout":4,"automation":18,"wlb":7,"creativity":7,"social":4,"remote":8,"icon":"📊","img":"https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&q=80","skills":["Python","SQL","Machine Learning","Statistics","Pandas"],"edu":"BS CS / Statistics"},
-    {"title":"AI/ML Engineer","industry":"Technology","salary":135000,"growth":40,"burnout":5,"automation":10,"wlb":6,"creativity":8,"social":4,"remote":8,"icon":"🤖","img":"https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=400&q=80","skills":["Python","TensorFlow","PyTorch","Deep Learning","NLP"],"edu":"BS CS / MS AI"},
-    {"title":"Product Manager","industry":"Technology","salary":130000,"growth":22,"burnout":7,"automation":12,"wlb":6,"creativity":7,"social":8,"remote":7,"icon":"🎯","img":"https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=400&q=80","skills":["Strategy","Analytics","Agile","Communication","Roadmapping"],"edu":"BS Business / CS"},
-    {"title":"Cybersecurity Analyst","industry":"Technology","salary":105000,"growth":30,"burnout":6,"automation":8,"wlb":6,"creativity":5,"social":4,"remote":7,"icon":"🔐","img":"https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=400&q=80","skills":["Network Security","Ethical Hacking","SIEM","Python","Risk Assessment"],"edu":"BS CS / Cybersecurity"},
-    {"title":"Cloud Architect","industry":"Technology","salary":145000,"growth":30,"burnout":5,"automation":12,"wlb":7,"creativity":5,"social":4,"remote":9,"icon":"☁️","img":"https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400&q=80","skills":["AWS","Azure","GCP","Terraform","Kubernetes"],"edu":"BS CS / Cloud Certs"},
-    {"title":"DevOps Engineer","industry":"Technology","salary":120000,"growth":28,"burnout":5,"automation":15,"wlb":7,"creativity":5,"social":4,"remote":9,"icon":"⚙️","img":"https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=400&q=80","skills":["Docker","Kubernetes","CI/CD","AWS","Linux"],"edu":"BS CS / DevOps Certs"},
-    {"title":"Game Developer","industry":"Gaming","salary":95000,"growth":18,"burnout":6,"automation":12,"wlb":5,"creativity":9,"social":4,"remote":8,"icon":"🎮","img":"https://images.unsplash.com/photo-1511512578047-dfb367046420?w=400&q=80","skills":["Unity","Unreal Engine","C#","C++","Game Design"],"edu":"BS CS / Game Design"},
-    {"title":"Graphic Designer","industry":"Creative","salary":55000,"growth":10,"burnout":3,"automation":20,"wlb":8,"creativity":10,"social":5,"remote":7,"icon":"🎭","img":"https://images.unsplash.com/photo-1626785774573-4b799315345d?w=400&q=80","skills":["Photoshop","Illustrator","Branding","Typography","Color Theory"],"edu":"BS Graphic Design"},
-    {"title":"Doctor","industry":"Healthcare","salary":200000,"growth":18,"burnout":8,"automation":5,"wlb":3,"creativity":4,"social":9,"remote":2,"icon":"🏥","img":"https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&q=80","skills":["Clinical Diagnosis","Patient Care","Medical Research","Pharmacology","Surgery"],"edu":"MBBS + Specialization"},
-    {"title":"Surgeon","industry":"Healthcare","salary":350000,"growth":15,"burnout":9,"automation":5,"wlb":2,"creativity":6,"social":7,"remote":1,"icon":"⚕️","img":"https://images.unsplash.com/photo-1551190822-a9333d879b1f?w=400&q=80","skills":["Surgery","Anatomy","Precision","Decision Making","Medical Knowledge"],"edu":"MBBS + MS Surgery"},
-    {"title":"Psychologist","industry":"Healthcare","salary":80000,"growth":20,"burnout":5,"automation":10,"wlb":7,"creativity":6,"social":9,"remote":6,"icon":"🧠","img":"https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&q=80","skills":["CBT","Therapy","Research","Assessment","Counseling"],"edu":"BS/MS/PhD Psychology"},
-    {"title":"Investment Banker","industry":"Finance","salary":180000,"growth":12,"burnout":9,"automation":15,"wlb":2,"creativity":5,"social":7,"remote":4,"icon":"💰","img":"https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=400&q=80","skills":["Financial Modeling","Valuation","Excel","Deal Structuring","Bloomberg"],"edu":"BS Finance + MBA"},
-    {"title":"Financial Analyst","industry":"Finance","salary":85000,"growth":10,"burnout":6,"automation":25,"wlb":5,"creativity":4,"social":5,"remote":6,"icon":"📈","img":"https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&q=80","skills":["Excel","Financial Modeling","Bloomberg","Forecasting","Reporting"],"edu":"BS Finance"},
-    {"title":"Accountant","industry":"Finance","salary":65000,"growth":8,"burnout":4,"automation":45,"wlb":6,"creativity":2,"social":4,"remote":7,"icon":"🧾","img":"https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&q=80","skills":["GAAP","QuickBooks","Tax","Excel","Auditing"],"edu":"BS Accounting / CPA"},
-    {"title":"Marketing Manager","industry":"Marketing","salary":95000,"growth":15,"burnout":6,"automation":20,"wlb":6,"creativity":8,"social":8,"remote":7,"icon":"📣","img":"https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&q=80","skills":["SEO","Content Marketing","Analytics","Brand Strategy","Social Media"],"edu":"BS Marketing"},
-    {"title":"Civil Engineer","industry":"Engineering","salary":80000,"growth":12,"burnout":5,"automation":15,"wlb":5,"creativity":5,"social":5,"remote":3,"icon":"🏗️","img":"https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=400&q=80","skills":["AutoCAD","Structural Analysis","Project Management","Surveying","Site Management"],"edu":"BS Civil Engineering"},
-    {"title":"Electrical Engineer","industry":"Engineering","salary":90000,"growth":14,"burnout":5,"automation":20,"wlb":6,"creativity":6,"social":4,"remote":5,"icon":"⚡","img":"https://images.unsplash.com/photo-1581092921461-7e9e0a7b5f44?w=400&q=80","skills":["Circuit Design","PCB","MATLAB","AutoCAD","Embedded Systems"],"edu":"BS Electrical Engineering"},
-    {"title":"University Professor","industry":"Education","salary":75000,"growth":8,"burnout":4,"automation":8,"wlb":8,"creativity":7,"social":7,"remote":6,"icon":"📚","img":"https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=400&q=80","skills":["Research","Teaching","Academic Writing","Mentoring","Public Speaking"],"edu":"PhD in Field"},
-    {"title":"Lawyer","industry":"Legal","salary":130000,"growth":10,"burnout":7,"automation":22,"wlb":4,"creativity":6,"social":8,"remote":5,"icon":"⚖️","img":"https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=400&q=80","skills":["Legal Research","Litigation","Contract Law","Negotiation","Drafting"],"edu":"LLB + Bar Exam"},
-    {"title":"Architect","industry":"Design","salary":80000,"growth":12,"burnout":6,"automation":12,"wlb":5,"creativity":9,"social":5,"remote":4,"icon":"🏛️","img":"https://images.unsplash.com/photo-1486325212027-8081e485255e?w=400&q=80","skills":["AutoCAD","SketchUp","BIM","Design Theory","Project Management"],"edu":"B.Arch / M.Arch"},
-    {"title":"Pilot","industry":"Aviation","salary":130000,"growth":8,"burnout":6,"automation":10,"wlb":4,"creativity":3,"social":6,"remote":1,"icon":"✈️","img":"https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=400&q=80","skills":["Navigation","Aviation Safety","Decision Making","Communication","Technical Flying"],"edu":"BS Aviation / CPL"},
-    {"title":"Environmental Scientist","industry":"Science","salary":75000,"growth":22,"burnout":3,"automation":10,"wlb":7,"creativity":6,"social":6,"remote":5,"icon":"🌿","img":"https://images.unsplash.com/photo-1542601906897-eabf21e56e5e?w=400&q=80","skills":["GIS","Environmental Analysis","Field Research","Data Collection","Policy Writing"],"edu":"BS Environmental Science"},
-    {"title":"HR Manager","industry":"Business","salary":75000,"growth":10,"burnout":5,"automation":20,"wlb":6,"creativity":4,"social":9,"remote":6,"icon":"👥","img":"https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=400&q=80","skills":["Recruitment","HRIS","Employee Relations","Training","Labor Law"],"edu":"BS HR / Business Admin"},
-    {"title":"Biomedical Engineer","industry":"Healthcare","salary":90000,"growth":20,"burnout":4,"automation":12,"wlb":6,"creativity":7,"social":5,"remote":5,"icon":"🧬","img":"https://images.unsplash.com/photo-1530026405186-ed1f139313f8?w=400&q=80","skills":["Medical Devices","Biomechanics","CAD","Signal Processing","Research"],"edu":"BS Biomedical Engineering"},
-    {"title":"Social Media Manager","industry":"Marketing","salary":60000,"growth":18,"burnout":5,"automation":25,"wlb":7,"creativity":8,"social":8,"remote":9,"icon":"📱","img":"https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=400&q=80","skills":["Instagram","TikTok","Content Creation","Analytics","Copywriting"],"edu":"BS Marketing / Communications"},
-    {"title":"Nutritionist","industry":"Healthcare","salary":65000,"growth":12,"burnout":3,"automation":18,"wlb":8,"creativity":5,"social":7,"remote":6,"icon":"🥗","img":"https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=400&q=80","skills":["Nutrition Science","Diet Planning","Health Coaching","Research","Client Counseling"],"edu":"BS Nutrition / Dietetics"},
-    {"title":"Journalist","industry":"Media","salary":55000,"growth":5,"burnout":6,"automation":30,"wlb":5,"creativity":8,"social":7,"remote":7,"icon":"📰","img":"https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=400&q=80","skills":["Writing","Research","Interviewing","Storytelling","Media Ethics"],"edu":"BS Journalism"},
-    {"title":"High School Teacher","industry":"Education","salary":50000,"growth":8,"burnout":5,"automation":8,"wlb":7,"creativity":6,"social":8,"remote":4,"icon":"🏫","img":"https://images.unsplash.com/photo-1509062522246-3755977927d7?w=400&q=80","skills":["Curriculum Design","Classroom Management","Communication","Mentoring","Subject Expertise"],"edu":"BS Education + Teaching Cert"},
-]
-
-def h(html): st.markdown(html, unsafe_allow_html=True)
-
-def validate_password(pw):
-    if len(pw) > 8: return False, "Password must be max 8 characters."
-    if not re.search(r'[A-Z]', pw): return False, "Password must have at least 1 uppercase letter."
-    if not re.search(r'\d', pw): return False, "Password must have at least 1 digit."
-    return True, ""
-
-def ai_call(messages, system, max_tokens=700):
-    if not GROQ_KEY or not GROQ_OK:
-        return "⚠️ Add your GROQ_API_KEY environment variable to enable AI responses."
-    try:
-        client=Groq(api_key=GROQ_KEY)
-        r=client.chat.completions.create(model="llama3-70b-8192",max_tokens=max_tokens,
-            messages=[{"role":"system","content":system}]+messages)
-        return r.choices[0].message.content
-    except Exception as e: return f"⚠️ AI Error: {e}"
-
-def match_careers(p):
-    scored=[]
-    for c in CAREERS:
-        s=((1-abs(p.get("wlb",7)-c["wlb"])/9)*25+(1-abs(p.get("creativity",5)-c["creativity"])/9)*20
-          +(1-abs(p.get("social",5)-c["social"])/9)*15+(1-abs(p.get("remote",7)-c["remote"])/9)*12
-          +(c["growth"]/40)*p.get("income",7)*0.015*10-(c["burnout"]/10)*8-(c["automation"]/100)*5)
-        scored.append((c,round(min(99,max(30,s*1.3)),1)))
-    return sorted(scored,key=lambda x:x[1],reverse=True)
-
-def read_file(f):
-    if not f: return ""
-    try:
-        if f.name.endswith(".txt"): return f.read().decode("utf-8","ignore")
-        elif f.name.endswith(".pdf") and PDF_OK:
-            r=PyPDF2.PdfReader(io.BytesIO(f.read()))
-            return "\n".join(pg.extract_text() or "" for pg in r.pages)
-        elif f.name.endswith(".docx") and DOCX_OK: return docx2txt.process(io.BytesIO(f.read()))
-        else: return f.read().decode("utf-8","ignore")
-    except: return ""
-
-def detect_skills(text):
-    cats={"Programming":["python","javascript","java","c++","c#","react","node","django"],
-          "Data & AI":["machine learning","deep learning","tensorflow","pytorch","pandas","sql"],
-          "Design":["figma","photoshop","illustrator","ux","ui","prototyping","wireframing"],
-          "Cloud/DevOps":["aws","azure","gcp","docker","kubernetes","terraform","linux"],
-          "Business":["project management","agile","marketing","seo","excel","leadership"],
-          "Soft Skills":["teamwork","problem solving","critical thinking","creativity","adaptability"]}
-    tl=text.lower(); found={}
-    for cat,skills in cats.items():
-        m=[s for s in skills if s in tl]
-        if m: found[cat]=m
-    return found
-
-def score_resume(text):
-    bd=[]; tot=0
-    w=len(text.split()); wc=min(20,round((min(w,500)/500)*20))
-    bd.append({"l":"Content Length","s":wc,"m":20,"c":"#1d4ed8"}); tot+=wc
-    sc=detect_skills(text); sk_cnt=sum(len(v) for v in sc.values()); sk=min(25,sk_cnt*3)
-    bd.append({"l":"Skills Detected","s":sk,"m":25,"c":"#7c3aed"}); tot+=sk
-    ce=(6 if "@" in text else 0)+(4 if re.search(r'(\+\d{10,12}|\d{10,11})',text) else 0)+(3 if "linkedin" in text.lower() else 0)+(2 if "github" in text.lower() else 0)
-    ce=min(15,ce); bd.append({"l":"Contact Info","s":ce,"m":15,"c":"#059669"}); tot+=ce
-    edu=15 if re.search(r'(education|school|college|university|degree|bachelor|master)',text,re.I) else 0
-    bd.append({"l":"Education Section","s":edu,"m":15,"c":"#d97706"}); tot+=edu
-    qnt=15 if re.search(r'(\d+%|\$\d+|\d+\s*(projects?|clients?|users?))',text,re.I) else 0
-    bd.append({"l":"Quantified Results","s":qnt,"m":15,"c":"#7c3aed"}); tot+=qnt
-    vbs=["built","designed","led","created","analyzed","managed","increased","developed","launched","implemented"]
-    vc=sum(1 for v in vbs if v in text.lower()); av=min(10,vc*2)
-    bd.append({"l":"Action Verbs","s":av,"m":10,"c":"#dc2626"}); tot+=av
-    return min(100,tot),bd,sc
-
-def pbar(label,val,mx,color="#1d4ed8",suf=""):
-    pct=min(100,round((val/mx)*100)) if mx else 0
-    d=suf if suf else str(val)
-    return f"""<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-<span style="font-size:12px;font-weight:600;color:#1E293B;min-width:148px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{label}</span>
-<div style="flex:1;height:7px;background:#E2E8F0;border-radius:99px;overflow:hidden;">
-<div style="width:{pct}%;height:7px;background:{color};border-radius:99px;transition:width .6s;"></div></div>
-<span style="font-size:12px;font-weight:800;color:{color};min-width:54px;text-align:right;font-family:'Plus Jakarta Sans',sans-serif;">{d}</span></div>"""
-
-def badge(t,cls="blue"):
-    m={"blue":("#eff6ff","#1d4ed8","#bfdbfe"),"teal":("#ecfeff","#0891b2","#a5f3fc"),
-       "green":("#f0fdf4","#16a34a","#bbf7d0"),"amber":("#fffbeb","#d97706","#fde68a"),
-       "red":("#fef2f2","#dc2626","#fecaca"),"violet":("#f5f3ff","#7c3aed","#ddd6fe")}
-    bg,c,bo=m.get(cls,m["blue"])
-    return f'<span style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:99px;font-size:10.5px;font-weight:700;background:{bg};color:{c};border:1.5px solid {bo};margin:2px;">{t}</span>'
-
-def chip(t):
-    return f'<span style="background:#f0f7ff;border:1.5px solid #bfdbfe;border-radius:7px;padding:3px 10px;font-size:11px;font-weight:600;color:#1d4ed8;margin:2px;display:inline-block;">{t}</span>'
-
-# ── GLOBAL CSS ──
-h("""<style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Syne:wght@700;800;900&display=swap');
-:root{--P:#1d4ed8;--S:#2563eb;--A:#60a5fa;--bg:#f0f7ff;--card:#ffffff;--border:#bfdbfe;--text:#0f172a;--muted:#64748b;}
-*,*::before,*::after{box-sizing:border-box;}
-html,body,[data-testid="stAppViewContainer"],[data-testid="stMain"]{
-  background:var(--bg)!important;
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  color:var(--text)!important;
-}
-#MainMenu,footer,header,[data-testid="stHeader"],[data-testid="stToolbar"],[data-testid="stDecoration"]{
-  visibility:hidden!important;display:none!important;
-}
-[data-testid="stSidebarNav"]{display:none!important;}
-.block-container{padding:0!important;max-width:100%!important;}
-[data-testid="stMainBlockContainer"]{padding:0!important;}
-[data-testid="stSidebarContent"]{padding:0!important;}
-section[data-testid="stSidebar"]>div:first-child{padding:0!important;}
-/* Sidebar Styling */
-section[data-testid="stSidebar"]{
-  background:linear-gradient(180deg,#060c24 0%,#0a1240 40%,#0f1a4e 70%,#1a2d7a 100%)!important;
-  border-right:1px solid rgba(37,99,235,.3)!important; min-width:256px!important;
-}
-section[data-testid="stSidebar"] .stButton>button{
-  background:transparent!important;color:rgba(148,197,253,.55)!important;
-  border:1px solid transparent!important;border-radius:11px!important;
-  font-size:13px!important;font-weight:600!important;text-align:left!important;
-  padding:9px 14px 9px 18px!important;width:100%!important;
-  font-family:'Plus Jakarta Sans',sans-serif!important;transition:all .22s ease!important;margin-bottom:3px!important;
-}
-section[data-testid="stSidebar"] .stButton>button:hover{
-  background:rgba(37,99,235,.22)!important;color:#e0eaff!important;transform:translateX(6px)!important;
-}
-section[data-testid="stSidebar"] .stButton>button:focus{
-  background:rgba(29,78,216,.3)!important;color:white!important; border:1px solid rgba(96,165,250,.6)!important;
-}
-section[data-testid="stSidebar"] .sb-active button{
-  background:linear-gradient(90deg,rgba(29,78,216,.35),rgba(29,78,216,.15))!important;color:white!important;border-left:3px solid #60a5fa!important;font-weight:800!important;
-}
-/* Input Styling */
-.stButton>button{
-  font-family:'Plus Jakarta Sans',sans-serif!important;font-weight:700!important;
-  border-radius:10px!important;transition:all .2s!important;
-  background:linear-gradient(135deg,#1d4ed8,#2563eb)!important;color:white!important;border:none!important;
-}
-.stButton>button:hover{transform:translateY(-2px)!important;box-shadow:0 6px 20px rgba(29,78,216,.28)!important;}
-.stTextInput>div>div>input{
-  background:#f8faff!important;border:2px solid #bfdbfe!important;border-radius:10px!important;
-  font-family:'Plus Jakarta Sans',sans-serif!important;color:var(--text)!important;
-}
-.stTextInput>div>div>input:focus{border-color:var(--P)!important;box-shadow:0 0 0 3px rgba(29,78,216,.12)!important;}
-label{font-family:'Plus Jakarta Sans',sans-serif!important;font-weight:700!important;color:#1d4ed8!important;font-size:12px!important;}
-.stFileUploader>div{background:#f8faff!important;border:2px dashed #bfdbfe!important;border-radius:12px!important;}
-
-/* Components */
-.pf-card{background:white;border-radius:16px;padding:20px;border:1.5px solid #e0efff;margin-bottom:16px;}
-.match-card{background:white;border:1.5px solid #e0efff;border-radius:16px;padding:18px;margin-bottom:14px;position:relative;}
-.match-card.gold-pick::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#1d4ed8,#60a5fa);}
-.qs-card{background:white;border-radius:14px;padding:16px 12px;border:1.5px solid #e0efff;text-align:center;}
-.tl-body{background:white;border:1.5px solid #e0efff;border-radius:13px;padding:13px 17px;flex:1;margin-bottom:13px;}
-.stat-card{background:white;border-radius:14px;padding:18px;border:1.5px solid #e0efff;text-align:center;}
-.pmsg-ai{background:white;border:1.5px solid #e0efff;border-radius:14px 14px 14px 3px;padding:10px 14px;font-size:12.5px;color:#0f172a;max-width:88%;}
-.pmsg-user{background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:14px 14px 3px 14px;padding:10px 14px;color:white;max-width:88%;align-self:flex-end;}
-</style>""")
-
-# ── HIDE SIDEBAR ON PUBLIC PAGES ──
-pg = st.session_state.page
-if pg in ("landing","login","signup"):
-    h("""<style>
-    section[data-testid="stSidebar"]{display:none!important;} [data-testid="collapsedControl"]{display:none!important;}
-    </style>""")
-
-# ════════════════════════════════════════════════════════════════
-# LANDING PAGE (Fixed Hero & Horizontal Nav & Restricted Chatbot)
-# ════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════
+# LANDING PAGE
+# ══════════════════════════════════════════════════════
 if pg == "landing":
     gk_safe = GROQ_KEY.replace("'","").replace('"','') if GROQ_KEY else ""
 
-    # ── HIDDEN BUTTONS (For Logic) ──
+    # ── HIDDEN STREAMLIT BUTTONS (for JS to trigger page nav) ──
     _, b1, b2, b3, b4 = st.columns([3, 1, 1, 1, 1])
-    with b1: st.button("Home", key="trig_home")
-    with b2: st.button("Login", key="trig_login")
-    with b3: st.button("Signup", key="trig_signup")
-    with b4: st.button("About", key="trig_about")
+    with b1: home_trig = st.button("Home", key="trig_home")
+    with b2: login_trig = st.button("Login", key="trig_login")
+    with b3: signup_trig = st.button("Signup", key="trig_signup")
+    with b4: about_trig = st.button("About", key="trig_about")
 
-    # ── RESTRICTED CHATBOT (Fixed Logic) ──
+    if home_trig: st.session_state.page = "landing"; st.rerun()
+    if login_trig: st.session_state.page = "login"; st.rerun()
+    if signup_trig: st.session_state.page = "signup"; st.rerun()
+
+    # ── EMBEDDED CHATBOT via components.html (restricted to website help) ──
     components.html(f"""<!DOCTYPE html><html><head>
-    <meta charset="UTF-8"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
     *{{box-sizing:border-box;margin:0;padding:0;}} body{{background:transparent;overflow:hidden;font-family:'Plus Jakarta Sans',sans-serif;}}
     @keyframes fabPulse{{0%,100%{{box-shadow:0 0 0 0 rgba(29,78,216,.5),0 8px 32px rgba(29,78,216,.55);}}70%{{box-shadow:0 0 0 14px rgba(29,78,216,0),0 8px 32px rgba(29,78,216,.55);}}}}
@@ -805,21 +699,38 @@ if pg == "landing":
     #pf-win.open{{display:flex;animation:chatSlide .3s cubic-bezier(.34,1.56,.64,1);}}
     #pf-hdr{{background:linear-gradient(135deg,#060c1f,#1e3a8a,#1d4ed8);padding:14px 16px;display:flex;align-items:center;gap:11px;flex-shrink:0;}}
     #pf-msgs{{padding:13px;min-height:185px;max-height:272px;overflow-y:auto;display:flex;flex-direction:column;gap:9px;background:#f8faff;flex:1;}}
-    .pmsg-ai{{background:white;border:1.5px solid #e0efff;border-radius:14px 14px 14px 3px;padding:10px 13px;font-size:12.5px;color:#0f172a;max-width:90%;}}
-    .pmsg-user{{background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:14px 14px 3px 14px;padding:10px 13px;color:white;max-width:90%;align-self:flex-end;margin-left:auto;}}
+    .pmsg-ai{{background:white;border:1.5px solid #e0efff;border-radius:14px 14px 14px 3px;padding:10px 13px;font-size:12.5px;color:#0f172a;max-width:90%;line-height:1.7;}}
+    .pmsg-user{{background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:14px 14px 3px 14px;padding:10px 13px;color:white;max-width:90%;align-self:flex-end;margin-left:auto;font-size:12.5px;}}
+    #pf-qs{{padding:8px 10px;background:white;border-top:1px solid #e8f0fe;display:flex;flex-wrap:wrap;gap:5px;flex-shrink:0;}}
+    .pq{{background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:99px;padding:4px 11px;font-size:10.5px;font-weight:700;color:#1d4ed8;cursor:pointer;transition:all .18s;font-family:'Plus Jakarta Sans',sans-serif;}}
+    .pq:hover{{background:#1d4ed8;color:white;border-color:#1d4ed8;}}
     #pf-inp-row{{padding:10px 11px;border-top:1.5px solid #e0efff;display:flex;gap:7px;background:white;flex-shrink:0;}}
     #pf-inp{{flex:1;border:1.5px solid #bfdbfe;border-radius:9px;padding:8px 12px;font-size:12.5px;background:#f8faff;font-family:'Plus Jakarta Sans',sans-serif;outline:none;}}
-    #pf-snd{{background:linear-gradient(135deg,#1d4ed8,#2563eb);color:white;border:none;border-radius:9px;padding:8px 16px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;}}
+    #pf-inp:focus{{border-color:#1d4ed8;background:white;}}
+    #pf-snd{{background:linear-gradient(135deg,#1d4ed8,#2563eb);color:white;border:none;border-radius:9px;padding:8px 16px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;white-space:nowrap;}}
+    #pf-snd:hover{{background:#0f172a;}}
     </style></head><body>
     <div id="pf-fab" class="fab-pulse" onclick="pfToggle()">🤖<div id="pf-dot"></div></div>
     <div id="pf-win">
       <div id="pf-hdr">
         <div style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:20px;border:2px solid rgba(255,255,255,.2);">🧭</div>
-        <div style="flex:1;"><div style="font-weight:800;font-size:14px;color:white;">PathFinder AI</div><div style="font-size:10.5px;color:rgba(255,255,255,.55);">Website Support</div></div>
-        <span onclick="pfToggle()" style="cursor:pointer;color:rgba(255,255,255,.6);font-size:18px;">✕</span>
+        <div style="flex:1;"><div style="font-weight:800;font-size:14px;color:white;">PathFinder AI</div><div style="font-size:10.5px;color:rgba(255,255,255,.55);">Website Support · Restricted Mode</div></div>
+        <span onclick="pfToggle()" style="cursor:pointer;color:rgba(255,255,255,.6);font-size:18px;padding:4px;">✕</span>
       </div>
-      <div id="pf-msgs"><div class="pmsg-ai">👋 Hi! I'm the PathFinder AI Assistant.<br><br>I can help you use this website. Ask me about features like Career Matching, Resume Scoring, or how to navigate!</div></div>
-      <div id="pf-inp-row"><input id="pf-inp" placeholder="Ask about the website..." onkeydown="if(event.key==='Enter')pfSend()"><button id="pf-snd" onclick="pfSend()">Send ›</button></div>
+      <div id="pf-msgs">
+        <div class="pmsg-ai">👋 Hi! I'm PathFinder AI assistant.<br><br>I can help you understand this website — features like <strong>Career Matching</strong>, <strong>Resume Scoring</strong>, <strong>Roadmaps</strong>, and how to navigate. Ask away!</div>
+      </div>
+      <div id="pf-qs">
+        <span class="pq" onclick="pfQ('What can PathFinder AI do?')">What can this do?</span>
+        <span class="pq" onclick="pfQ('How do I get started?')">How to start?</span>
+        <span class="pq" onclick="pfQ('What is Career Matching?')">Career Match?</span>
+        <span class="pq" onclick="pfQ('How does Resume Scorer work?')">Resume Scorer?</span>
+        <span class="pq" onclick="pfQ('Is PathFinder AI free?')">Is it free?</span>
+      </div>
+      <div id="pf-inp-row">
+        <input id="pf-inp" placeholder="Ask about the website..." onkeydown="if(event.key==='Enter')pfSend()">
+        <button id="pf-snd" onclick="pfSend()">Send ›</button>
+      </div>
     </div>
     <script>
     var GROQ_KEY="{gk_safe}";
@@ -828,352 +739,468 @@ if pg == "landing":
       fabOpen=!fabOpen;
       var w=document.getElementById('pf-win'); var f=document.getElementById('pf-fab');
       if(fabOpen){{w.classList.add('open');f.classList.remove('fab-pulse');f.innerHTML='<span style="font-size:20px;font-weight:300;color:white;">✕</span>';}}
-      else{{w.classList.remove('visible');setTimeout(function(){{w.classList.remove('open');}},270);f.classList.add('fab-pulse');f.innerHTML='🤖<div id="pf-dot"></div>';}}
+      else{{w.classList.remove('open');f.classList.add('fab-pulse');f.innerHTML='🤖<div id="pf-dot"></div>';}}
     }}
     setTimeout(function(){{if(!autoOpened){{autoOpened=true;pfToggle();}}}},4200);
+    function pfQ(q){{document.getElementById('pf-inp').value=q;pfSend();}}
     function pfAddMsg(txt,isUser){{
       var msgs=document.getElementById('pf-msgs');
       var d=document.createElement('div'); d.className=isUser?'pmsg-user':'pmsg-ai';
-      d.textContent=txt; msgs.appendChild(d); msgs.scrollTop=9999;
+      d.innerHTML=txt; msgs.appendChild(d); msgs.scrollTop=9999;
     }}
+    var TIPS=["PathFinder AI matches you with 30+ careers based on your personality and preferences!","Use the Resume Scorer to upload your CV and get AI-powered feedback.","The Roadmap feature creates step-by-step career plans tailored to your age.","Career Matches uses ML scoring to rank careers by compatibility.","Sign up free — no credit card required, all features included!"];
     function pfSend(){{
       var inp=document.getElementById('pf-inp'); var q=inp.value.trim(); if(!q)return; inp.value=''; pfAddMsg(q,true);
+      var sys='You are a helpful assistant for PathFinder AI, a career guidance website. You ONLY answer questions about this website and its features (Career Matching, Roadmaps, Resume Scorer, Market Insights, Institute Finder, AI Advisor). If asked about specific careers or general career advice, say: "For career advice, please sign up and use our Career Matches or AI Advisor features!" Keep answers short, friendly, and 1-3 sentences.';
       if(GROQ_KEY){{
-        fetch('https://api.groq.com/openai/v1/chat/completions',{{method:'POST',headers:{{'Authorization':'Bearer '+GROQ_KEY,'Content-Type':'application/json'}},
-          body:JSON.stringify({{model:'llama3-70b-8192',max_tokens:300,messages:[{{role:'system',content:'You are a support assistant for PathFinder AI. You only answer questions about this website (features like Career Match, Roadmap, Resume Scorer). If user asks about general careers, say "I am restricted to website help. Please visit the Career Matches page for career advice." Keep answers short (1-2 sentences).'}},{{role:'user',content:q}}]}})
-        }}).then(r=>r.json()).then(d=>{{pfAddMsg(d.choices[0].message.content,false);}}).catch(()=>{{pfAddMsg('I am restricted to website help only.',false);}});
+        fetch('https://api.groq.com/openai/v1/chat/completions',{{method:'POST',
+          headers:{{'Authorization':'Bearer '+GROQ_KEY,'Content-Type':'application/json'}},
+          body:JSON.stringify({{model:'llama3-70b-8192',max_tokens:200,messages:[{{role:'system',content:sys}},{{role:'user',content:q}}]}})
+        }}).then(r=>r.json()).then(d=>{{pfAddMsg(d.choices&&d.choices[0]?d.choices[0].message.content:'Please sign up to access full AI features!',false);}}).catch(()=>{{pfAddMsg(TIPS[Math.floor(Math.random()*TIPS.length)],false);}});
       }} else {{
-        pfAddMsg('I am restricted to website help only.',false);
+        pfAddMsg(TIPS[Math.floor(Math.random()*TIPS.length)],false);
       }}
     }}
     </script></body></html>""", height=0, scrolling=False)
 
-    # ── HORIZONTAL NAVBAR (HTML) ──
+    # ── HORIZONTAL NAVBAR ──
     h("""<style>
-    .main-nav{position:sticky;top:0;width:100%;height:70px;background:white;display:flex;align-items:center;justify-content:space-between;padding:0 4%;border-bottom:1.5px solid #e0efff;z-index:1000;box-shadow:0 4px 20px rgba(0,0,0,0.05);}
-    .nav-logo{display:flex;align-items:center;gap:10px;font-weight:900;font-size:20px;color:#1d4ed8;cursor:pointer;}
-    .nav-right{display:flex;gap:10px;}
-    .nav-btn{background:transparent;border:1.5px solid #1d4ed8;color:#1d4ed8;padding:8px 20px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;transition:all .2s;font-family:'Plus Jakarta Sans',sans-serif;}
-    .nav-btn:hover{background:#1d4ed8;color:white;transform:translateY(-2px);}
+    .main-nav{
+      position:sticky;top:0;width:100%;height:68px;
+      background:rgba(255,255,255,.97);backdrop-filter:blur(20px);
+      display:flex;align-items:center;justify-content:space-between;
+      padding:0 4%;border-bottom:1.5px solid #e0efff;z-index:5000;
+      box-shadow:0 2px 18px rgba(29,78,216,.07);
+      font-family:'Plus Jakarta Sans',sans-serif;
+    }
+    .nav-logo{display:flex;align-items:center;gap:9px;cursor:pointer;text-decoration:none;}
+    .nav-logo-icon{width:36px;height:36px;background:linear-gradient(135deg,#1d4ed8,#60a5fa);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 4px 14px rgba(29,78,216,.35);transition:transform .2s,box-shadow .2s;}
+    .nav-logo-icon:hover{transform:rotate(-8deg) scale(1.1);box-shadow:0 8px 24px rgba(29,78,216,.5);}
+    .nav-logo-text{font-size:20px;font-weight:900;color:#0f172a;letter-spacing:-.5px;}
+    .nav-logo-text span{color:#1d4ed8;}
+    .nav-links{display:flex;align-items:center;gap:2px;}
+    .nav-link{padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;color:#64748b;cursor:pointer;transition:all .2s;text-decoration:none;border:none;background:transparent;font-family:'Plus Jakarta Sans',sans-serif;}
+    .nav-link:hover{color:#1d4ed8;background:rgba(29,78,216,.07);transform:translateY(-1px);}
+    .nav-actions{display:flex;gap:9px;align-items:center;}
+    .nav-btn-outline{padding:8px 18px;border:2px solid #1d4ed8;border-radius:9px;color:#1d4ed8;background:transparent;font-size:12.5px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all .2s;}
+    .nav-btn-outline:hover{background:#1d4ed8;color:white;transform:translateY(-2px);box-shadow:0 6px 18px rgba(29,78,216,.3);}
+    .nav-btn-fill{padding:8px 20px;border:none;border-radius:9px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:white;font-size:12.5px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all .2s;box-shadow:0 3px 12px rgba(29,78,216,.3);}
+    .nav-btn-fill:hover{background:linear-gradient(135deg,#1e40af,#1d4ed8);transform:translateY(-2px);box-shadow:0 8px 22px rgba(29,78,216,.45);}
     </style>
     <div class="main-nav">
-        <div class="nav-logo">🧭 PathFinder AI</div>
-        <div class="nav-right">
-            <button class="nav-btn" onclick="document.getElementById('trig_home').click()">🏠 Home</button>
-            <button class="nav-btn" onclick="document.getElementById('trig_login').click()">🔐 Login</button>
-            <button class="nav-btn" onclick="document.getElementById('trig_signup').click()">🚀 Signup</button>
-            <button class="nav-btn" onclick="document.getElementById('trig_about').click()">📖 About</button>
-        </div>
-    </div>
-    """)
+      <div class="nav-logo" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+        <div class="nav-logo-icon">🧭</div>
+        <span class="nav-logo-text">PathFinder<span>.AI</span></span>
+      </div>
+      <div class="nav-links">
+        <button class="nav-link" onclick="window.scrollTo({top:0,behavior:'smooth'})">🏠 Home</button>
+        <button class="nav-link" onclick="var el=document.getElementById('feat-sec');if(el)el.scrollIntoView({behavior:'smooth'})">✨ Features</button>
+        <button class="nav-link" onclick="var el=document.getElementById('steps-sec');if(el)el.scrollIntoView({behavior:'smooth'})">🔄 How It Works</button>
+      </div>
+      <div class="nav-actions">
+        <button class="nav-btn-outline" onclick="document.querySelector('[data-testid=stButton] button[kind]') && document.querySelectorAll('button').forEach(b=>{if(b.innerText==='Login')b.click()})">🔐 Log In</button>
+        <button class="nav-btn-fill" onclick="document.querySelectorAll('button').forEach(b=>{if(b.innerText==='Signup')b.click()})">🚀 Get Started</button>
+      </div>
+    </div>""")
 
-    # ── HERO SECTION (Cleaned Image, No Annoying Floats) ──
-    h("""
-    <div style="padding:60px 4% 40px;background:linear-gradient(135deg,#eef4ff 0%,#dbeafe 100%);display:flex;align-items:center;gap:40px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:300px;">
-            <h1 style="font-family:'Syne',sans-serif;font-size:clamp(36px,5vw,64px);font-weight:900;color:#0f172a;margin-bottom:20px;">
-                Discover Your <span style="color:#1d4ed8;">Perfect Career</span>
-            </h1>
-            <p style="font-size:16px;color:#475569;margin-bottom:30px;">AI-Powered Career Intelligence Platform for students.</p>
-            <div style="display:flex;gap:15px;">
-                <button class="nav-btn" style="background:#1d4ed8;color:white;padding:12px 24px;" onclick="document.getElementById('trig_signup').click()">Get Started</button>
-                <button class="nav-btn" onclick="document.getElementById('trig_about').click()">Learn More</button>
-            </div>
-        </div>
-        <!-- Hero Image (Static, No Hover Overlays) -->
-        <div style="flex:1;min-width:300px;display:flex;justify-content:center;">
-            <img src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&q=80" style="width:100%;max-width:500px;border-radius:20px;box-shadow:0 10px 30px rgba(29,78,216,0.15);">
-        </div>
-    </div>
-    """)
+    # ── HERO SECTION ──
+    h("""<div style="padding:72px 4% 56px;background:linear-gradient(135deg,#eef4ff 0%,#dbeafe 60%,#f0f4ff 100%);display:flex;align-items:center;gap:52px;flex-wrap:wrap;position:relative;overflow:hidden;">
+      <div style="position:absolute;top:-100px;right:-100px;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(96,165,250,.18),transparent 70%);pointer-events:none;"></div>
+      <div style="position:absolute;bottom:-80px;left:-80px;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(167,139,250,.12),transparent 70%);pointer-events:none;"></div>
 
-    # ── ABOUT / FEATURES SECTION (Simplified) ──
-    h('<div style="padding:60px 4% 40px;background:white;"><h2 style="text-align:center;font-size:32px;font-weight:800;margin-bottom:40px;">Why PathFinder?</h2><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:30px;">')
-    for title, desc, color in [
-        ("AI Matching", "Matches you with 30+ careers based on personality.", "#1d4ed8"),
-        ("Resume Scorer", "Analyzes your CV and gives tips to improve it.", "#059669"),
-        ("Career Roadmaps", "Step-by-step guide to reach your dream job.", "#7c3aed"),
-        ("Market Insights", "Salary trends and automation risks for jobs.", "#ea580c"),
-        ("Burnout Prevention", "Highlights high-stress roles to avoid.", "#dc2626"),
-        ("Institute Finder", "Find universities tailored to your goals.", "#0891b2")
-    ]:
-        h(f'<div style="padding:20px;border-radius:12px;border:1px solid #e0efff;box-shadow:0 4px 12px rgba(0,0,0,0.05);"><h3 style="color:{color};margin:0 0 10px 0;">{title}</h3><p style="color:#64748b;font-size:14px;line-height:1.6;">{desc}</p></div>')
-    h('</div></div>')
-    
+      <!-- LEFT TEXT -->
+      <div style="flex:1;min-width:300px;position:relative;z-index:1;">
+        <div style="display:inline-flex;align-items:center;gap:7px;background:white;border:1.5px solid #bfdbfe;border-radius:99px;padding:6px 16px;margin-bottom:24px;box-shadow:0 2px 12px rgba(29,78,216,.1);">
+          <span style="width:8px;height:8px;background:#22c55e;border-radius:50%;display:inline-block;animation:blink 1.5s infinite;"></span>
+          <span style="font-size:11px;font-weight:800;color:#1d4ed8;letter-spacing:2px;text-transform:uppercase;font-family:'Plus Jakarta Sans',sans-serif;">AI-Powered Career Intelligence</span>
+        </div>
+        <h1 style="font-family:'Syne',sans-serif;font-size:clamp(36px,5vw,66px);font-weight:900;line-height:1.05;letter-spacing:-2px;color:#0f172a;margin-bottom:20px;">
+          Discover Your<br>
+          <span style="background:linear-gradient(135deg,#1d4ed8,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Perfect Career</span>
+        </h1>
+        <p style="font-size:16px;color:#475569;line-height:1.9;max-width:500px;margin-bottom:32px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:500;">
+          AI-driven career matching, skill roadmaps, market insights & resume analysis — powered by Llama 3. Built for students. 100% free.
+        </p>
+        <div style="display:flex;gap:13px;flex-wrap:wrap;margin-bottom:28px;">
+          <button onclick="document.querySelectorAll('button').forEach(b=>{if(b.innerText==='Signup')b.click()})"
+            style="background:linear-gradient(135deg,#1d4ed8,#2563eb);color:white;border:none;border-radius:13px;padding:14px 38px;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 6px 28px rgba(29,78,216,.4);font-family:'Plus Jakarta Sans',sans-serif;transition:all .22s;"
+            onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 12px 38px rgba(29,78,216,.55)'"
+            onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 6px 28px rgba(29,78,216,.4)'">
+            🚀 Start Free →
+          </button>
+          <button onclick="document.querySelectorAll('button').forEach(b=>{if(b.innerText==='Login')b.click()})"
+            style="background:white;color:#1d4ed8;border:2px solid #bfdbfe;border-radius:13px;padding:14px 28px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all .22s;"
+            onmouseover="this.style.borderColor='#1d4ed8';this.style.background='#eff6ff';this.style.transform='translateY(-2px)'"
+            onmouseout="this.style.borderColor='#bfdbfe';this.style.background='white';this.style.transform='translateY(0)'">
+            🔐 Log In
+          </button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <span style="background:white;border:1.5px solid #bfdbfe;border-radius:99px;padding:6px 14px;color:#1d4ed8;font-size:10.5px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;">🤖 Llama 3 Powered</span>
+          <span style="background:white;border:1.5px solid #bfdbfe;border-radius:99px;padding:6px 14px;color:#1d4ed8;font-size:10.5px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;">🎯 30+ Careers</span>
+          <span style="background:white;border:1.5px solid #bfdbfe;border-radius:99px;padding:6px 14px;color:#1d4ed8;font-size:10.5px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;">📊 Market Analytics</span>
+          <span style="background:white;border:1.5px solid #bfdbfe;border-radius:99px;padding:6px 14px;color:#1d4ed8;font-size:10.5px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;">🆓 100% Free</span>
+        </div>
+      </div>
+
+      <!-- RIGHT IMAGE -->
+      <div style="flex:0 0 440px;max-width:440px;min-width:280px;position:relative;z-index:1;">
+        <div style="border-radius:24px;overflow:hidden;box-shadow:0 24px 72px rgba(29,78,216,.25);border:3px solid rgba(255,255,255,.9);transition:transform .4s,box-shadow .4s;"
+          onmouseover="this.style.transform='scale(1.025)';this.style.boxShadow='0 36px 90px rgba(29,78,216,.35)'"
+          onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 24px 72px rgba(29,78,216,.25)'">
+          <img src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=880&q=85"
+            style="width:100%;height:340px;object-fit:cover;display:block;">
+        </div>
+        <!-- Floating badges -->
+        <div style="position:absolute;top:-14px;right:-14px;background:white;border-radius:14px;padding:11px 16px;box-shadow:0 8px 28px rgba(29,78,216,.18);border:1.5px solid #bfdbfe;font-family:'Plus Jakarta Sans',sans-serif;">
+          <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;">AI Match Score</div>
+          <div style="font-size:22px;font-weight:900;color:#1d4ed8;">94%</div>
+        </div>
+        <div style="position:absolute;bottom:-14px;left:-14px;background:white;border-radius:14px;padding:11px 16px;box-shadow:0 8px 28px rgba(5,150,105,.18);border:1.5px solid #bbf7d0;font-family:'Plus Jakarta Sans',sans-serif;">
+          <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Career Growth</div>
+          <div style="font-size:22px;font-weight:900;color:#059669;">+40%</div>
+        </div>
+      </div>
+    </div>""")
+
+    # ── FEATURES SECTION ──
+    h("""<div id="feat-sec" style="padding:72px 4%;background:white;">
+    <div style="text-align:center;margin-bottom:52px;">
+      <div style="font-size:11px;font-weight:800;letter-spacing:4px;text-transform:uppercase;color:#1d4ed8;margin-bottom:10px;font-family:'Plus Jakarta Sans',sans-serif;">PLATFORM FEATURES</div>
+      <h2 style="font-family:'Syne',sans-serif;font-size:clamp(28px,3.5vw,44px);font-weight:900;color:#0f172a;margin-bottom:14px;">Why PathFinder AI?</h2>
+      <p style="font-size:15px;color:#64748b;max-width:540px;margin:0 auto;line-height:1.85;font-family:'Plus Jakarta Sans',sans-serif;">Everything you need to make confident, data-driven career decisions — all in one platform.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px;">""")
+
+    feats = [
+        ("🎯","AI Career Matching","#1d4ed8","Match with 30+ careers based on personality, values, and market data. Updated with real salary & growth metrics."),
+        ("📄","Resume Scorer","#7c3aed","Upload your CV and get instant AI analysis — score breakdown, skill gaps, and personalized improvement tips."),
+        ("🗺️","Skill Roadmaps","#0891b2","Age-adaptive, step-by-step career development plans — from education path to first job and beyond."),
+        ("📊","Market Insights","#059669","Live salary benchmarks, automation risk scores, growth trends, and remote-work ratings for every career."),
+        ("🏛️","Institute Finder","#d97706","AI recommends top universities, online courses, and certifications tailored to your career and location."),
+        ("💬","AI Career Advisor","#dc2626","Chat with Llama 3 — ask anything about careers, salaries, skills, or job hunting strategies."),
+    ]
+    for ico, title, color, desc in feats:
+        h(f"""<div style="background:white;border:1.5px solid #e0efff;border-radius:18px;padding:28px;transition:all .3s;"
+  onmouseover="this.style.transform='translateY(-6px)';this.style.boxShadow='0 18px 48px rgba(29,78,216,.12)';this.style.borderColor='{color}40'"
+  onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='none';this.style.borderColor='#e0efff'">
+  <div style="width:52px;height:52px;background:linear-gradient(135deg,{color}15,{color}28);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:16px;border:1.5px solid {color}22;">{ico}</div>
+  <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:16px;font-weight:800;color:#0f172a;margin-bottom:8px;">{title}</div>
+  <div style="font-size:13.5px;color:#64748b;line-height:1.85;font-family:'Plus Jakarta Sans',sans-serif;">{desc}</div>
+</div>""")
+
+    h("</div></div>")
+
+    # ── HOW IT WORKS ──
+    h("""<div id="steps-sec" style="padding:72px 4%;background:linear-gradient(135deg,#eef4ff,#f0f4ff);">
+    <div style="text-align:center;margin-bottom:52px;">
+      <div style="font-size:11px;font-weight:800;letter-spacing:4px;text-transform:uppercase;color:#1d4ed8;margin-bottom:10px;font-family:'Plus Jakarta Sans',sans-serif;">SIMPLE PROCESS</div>
+      <h2 style="font-family:'Syne',sans-serif;font-size:clamp(28px,3.5vw,44px);font-weight:900;color:#0f172a;">How It Works</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px;max-width:900px;margin:0 auto;">""")
+
+    steps = [
+        ("1","📋","Build Your Profile","Tell us about your personality, values, work style, and goals. It takes just 3 minutes.","#1d4ed8"),
+        ("2","🎯","Get AI Matches","Our ML algorithm scores 30+ careers based on your profile and real market data.","#7c3aed"),
+        ("3","🗺️","Follow Your Roadmap","Get a personalized step-by-step plan from where you are now to your dream career.","#0891b2"),
+    ]
+    for num, ico, title, desc, color in steps:
+        h(f"""<div style="background:white;border-radius:18px;padding:28px 24px;text-align:center;border:1.5px solid #e0efff;transition:all .3s;"
+  onmouseover="this.style.transform='translateY(-6px)';this.style.boxShadow='0 18px 48px rgba(29,78,216,.12)'"
+  onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='none'">
+  <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,{color},{color}cc);display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-weight:900;font-size:20px;color:white;margin:0 auto 16px;">{num}</div>
+  <div style="font-size:28px;margin-bottom:12px;">{ico}</div>
+  <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:16px;font-weight:800;color:#0f172a;margin-bottom:8px;">{title}</div>
+  <div style="font-size:13px;color:#64748b;line-height:1.85;font-family:'Plus Jakarta Sans',sans-serif;">{desc}</div>
+</div>""")
+
+    h("</div></div>")
+
+    # ── CTA SECTION ──
+    h("""<div style="padding:72px 4%;background:linear-gradient(135deg,#0f172a,#1e3a8a,#1d4ed8);text-align:center;">
+    <h2 style="font-family:'Syne',sans-serif;font-size:clamp(28px,3.5vw,46px);font-weight:900;color:white;margin-bottom:16px;">Ready to Find Your Perfect Career?</h2>
+    <p style="font-size:16px;color:rgba(255,255,255,.7);max-width:500px;margin:0 auto 32px;line-height:1.85;font-family:'Plus Jakarta Sans',sans-serif;">Join thousands of students who discovered their dream career with PathFinder AI.</p>
+    <button onclick="document.querySelectorAll('button').forEach(b=>{if(b.innerText==='Signup')b.click()})"
+      style="background:white;color:#1d4ed8;border:none;border-radius:13px;padding:16px 48px;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 8px 32px rgba(0,0,0,.2);font-family:'Plus Jakarta Sans',sans-serif;transition:all .22s;"
+      onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 16px 48px rgba(0,0,0,.3)'"
+      onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 8px 32px rgba(0,0,0,.2)'">
+      🚀 Get Started Free →
+    </button>
+    </div>""")
+
     # ── FOOTER ──
-    h('<div style="padding:40px;text-align:center;color:#64748b;font-size:13px;">© 2025 PathFinder AI. All rights reserved.</div>')
+    h("""<div style="padding:40px 4%;background:#0f172a;text-align:center;">
+    <div style="display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:12px;">
+      <div style="width:32px;height:32px;background:linear-gradient(135deg,#1d4ed8,#60a5fa);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;">🧭</div>
+      <span style="font-family:'Syne',sans-serif;font-size:18px;font-weight:900;color:white;">PathFinder<span style="color:#60a5fa;">.AI</span></span>
+    </div>
+    <div style="font-size:12.5px;color:rgba(255,255,255,.35);font-family:'Plus Jakarta Sans',sans-serif;">© 2025 PathFinder AI · Built with ❤️ · Powered by Groq Llama 3 · 100% Free · No Ads</div>
+    </div>""")
 
-
-# ════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════
 # LOGIN PAGE
-# ════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════
 elif pg == "login":
-    _,c2,_ = st.columns([1,1.2,1])
-    with c2:
-        h('<div class="pf-card" style="margin-top:50px;">')
-        h('<h2 style="text-align:center;">Welcome Back</h2><p style="text-align:center;color:#64748b;">Sign in to continue.</p>')
-        email = st.text_input("Email")
-        pwd   = st.text_input("Password", type="password")
-        if st.button("Login", use_container_width=True):
-            if email in st.session_state.accounts and st.session_state.accounts[email]["password"] == pwd:
-                st.session_state.logged_in = True; st.session_state.current_user = email
-                st.session_state.page = "dashboard"; st.session_state.app_page = "home"; st.rerun()
-            else:
-                st.error("Invalid credentials.")
-        if st.button("Create Account", use_container_width=True): st.session_state.page = "signup"; st.rerun()
-        h('</div>')
-
-# ════════════════════════════════════════════════════════════════
-# SIGNUP PAGE
-# ════════════════════════════════════════════════════════════════
-elif pg == "signup":
-    _,c2,_ = st.columns([1,1.35,1])
-    with c2:
-        h('<div class="pf-card" style="margin-top:50px;">')
-        h('<h2 style="text-align:center;">Create Account</h2>')
-        nm = st.text_input("Full Name")
-        em = st.text_input("Email")
-        pw = st.text_input("Password", type="password")
-        ct = st.selectbox("Country", ["Pakistan","India","USA","UK","Other"])
-        if st.button("Sign Up", use_container_width=True):
-            if em not in st.session_state.accounts:
-                st.session_state.accounts[em] = {"name":nm,"password":pw,"country":ct}
-                st.session_state.logged_in = True; st.session_state.current_user = em
-                st.session_state.page = "dashboard"; st.session_state.app_page = "home"; st.rerun()
-            else: st.error("Email already exists.")
-        if st.button("Back to Login", use_container_width=True): st.session_state.page = "login"; st.rerun()
-        h('</div>')
-
-# ════════════════════════════════════════════════════════════════
-# DASHBOARD (With Sidebar)
-# ════════════════════════════════════════════════════════════════
-elif pg == "dashboard":
-    if not st.session_state.logged_in: 
-        st.session_state.page="login"; st.rerun()
-
-    # Auto sync profile
-    current_user = st.session_state.current_user
-    if not st.session_state.profile.get("name") and current_user in st.session_state.accounts:
-        st.session_state.profile.update(st.session_state.accounts[current_user])
-
-    p = st.session_state.profile
-    uname = p.get("name", "User")
-    ap = st.session_state.app_page
-    country = p.get("country", "")
-    ini = "".join(w[0] for w in (uname+" ").split()[:2]).upper()
-
-    # ── SIDEBAR CODE ──
-    with st.sidebar:
-        h(f"""<div style="padding:22px 16px 16px;border-bottom:1px solid rgba(37,99,235,.25);">
-<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
-  <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#0f172a,#1d4ed8,#60a5fa);display:flex;align-items:center;justify-content:center;font-size:18px;border:1.5px solid rgba(96,165,250,.3);flex-shrink:0;">🧭</div>
-  <div><div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:900;color:white;letter-spacing:-.5px;line-height:1.1;">PathFinder<span style="background:linear-gradient(135deg,#60a5fa,#93c5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">.AI</span></div><div style="font-size:9px;color:rgba(147,197,253,.4);letter-spacing:1px;text-transform:uppercase;">Career Intelligence</div></div>
-</div></div>
-<div style="padding:14px 14px 4px;font-size:8.5px;font-weight:800;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,.2);">Dashboard</div>""")
-
-        for pid, ico, label in [
-            ("home", "🏠", "Home"), ("profile", "📋", "My Profile"), ("matches", "🎯", "Career Matches"), ("roadmap", "🗺️", "Skill Roadmap")
-        ]:
-            if st.button(f"{ico}  {label}", key=f"sb_{pid}", use_container_width=True):
-                st.session_state.app_page = pid; st.rerun()
-
-        h('<div style="padding:10px 14px 4px;font-size:9px;font-weight:700;letter-spacing:3.5px;text-transform:uppercase;color:rgba(255,255,255,.18);">Tools</div>')
-        for pid, ico, label in [
-            ("resume", "📄", "Resume Analyzer"), ("chat", "💬", "AI Advisor"), ("insights", "📊", "Market Insights"), ("institutes", "🏛️", "Institute Finder"), ("training", "🤖", "Model Training")
-        ]:
-            if st.button(f"{ico}  {label}", key=f"sb_{pid}", use_container_width=True):
-                st.session_state.app_page = pid; st.rerun()
-
-        h(f"""<div style="height:20px;"></div>
-<div style="margin:0 8px 8px;padding:12px;background:rgba(29,78,216,.14);border:1.5px solid rgba(29,78,216,.28);border-radius:12px;">
-<div style="font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(147,197,253,.45);margin-bottom:4px;">Signed in as</div>
-<div style="font-size:13px;font-weight:800;color:white;letter-spacing:-.2px;">{uname}</div>
-<div style="font-size:10.5px;color:#60a5fa;margin-top:2px;">{"🌍 "+country if country else "👤 Student"}</div>
+    h("""<div class="auth-page-bg">
+<svg style="position:absolute;inset:0;width:100%;height:100%;opacity:.07;pointer-events:none;" xmlns="http://www.w3.org/2000/svg">
+<defs><pattern id="lg" width="36" height="36" patternUnits="userSpaceOnUse"><circle cx="18" cy="18" r="1.4" fill="#1d4ed8"/></pattern></defs>
+<rect width="100%" height="100%" fill="url(#lg)"/>
+</svg>
 </div>""")
-        if st.button("🚪  Sign Out", key="logout", use_container_width=True):
-            st.session_state.logged_in = False; st.session_state.current_user = None
-            st.session_state.page = "landing"; st.rerun()
-
-        # Active Highlighter
-        h(f"""<script>
-        (function(){{
-          var pageLabel={{"home":"Home","profile":"My Profile","matches":"Career Matches","roadmap":"Skill Roadmap","resume":"Resume Analyzer","chat":"AI Advisor","insights":"Market Insights","institutes":"Institute Finder","training":"Model Training"}};
-          var curr=pageLabel['{ap}']||'';
-          var allBtns=document.querySelectorAll('[data-testid="stSidebar"] .stButton > button');
-          if(curr){{
-            allBtns.forEach(function(b){{
-              if(b.textContent.indexOf(curr)>=0){{
-                b.style.background='linear-gradient(90deg,rgba(29,78,216,.38),rgba(29,78,216,.16))';b.style.color='white';b.style.borderLeft='3px solid #60a5fa';b.style.paddingLeft='11px';b.style.fontWeight='800';
-              }} else {{
-                b.style.background='transparent';b.style.color='rgba(148,197,253,.55)';b.style.borderLeft='3px solid transparent';b.style.paddingLeft='14px';
-              }}
-            }});
-          }}
-        }})();
-        </script>""")
-
-    # ── MAIN CONTENT ──
-    page_titles = {"home":"🏠 Home","profile":"📋 My Profile","matches":"🎯 Career Matches","roadmap":"🗺️ Skill Roadmap","resume":"📄 Resume Analyzer","chat":"💬 AI Advisor","insights":"📊 Market Insights","institutes":"🏛️ Institute Finder","training":"🤖 Model Training"}
-    h(f"""<div class="topbar" style="background:white;padding:11px 26px;border-bottom:1.5px solid #bfdbfe;display:flex;justify-content:space-between;">
-<div style="font-size:14px;font-weight:800;color:#64748b;">{page_titles.get(ap,"Dashboard")}</div>
-<div style="display:flex;align-items:center;gap:9px;background:#f8faff;border:1.5px solid #bfdbfe;border-radius:99px;padding:5px 14px;">
-<div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#60a5fa);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:white;">{ini}</div>
-<span style="font-size:13px;font-weight:700;color:#0f172a;">{uname.split()[0] if " " in uname else uname}</span>
-</div></div>""")
-
-    h('<div style="padding:22px 26px;">')
-
-    # ── HOME PAGE CONTENT ──
-    if ap == "home":
-        h(f"""<div class="fu"><div style="font-size:28px;font-weight:900;color:#0f172a;margin-bottom:3px;">Welcome back, {uname.split()[0] if " " in uname else uname}! 👋</div><div style="font-size:13.5px;color:#64748b;margin-bottom:22px;">Your career intelligence command center</div></div>""")
-        c1, c2, c3, c4 = st.columns(4)
-        for col, ico, val, lbl, c in zip([c1, c2, c3, c4], ["🎯", "🤖", "🌍", "⚡"], ["30+", "Ready", "12", "Llama 3"], ["Career Paths", "ML Model", "Industries", "AI Engine"], ["#1d4ed8", "#7c3aed", "#0891b2", "#059669"]):
-            with col:
-                h(f"""<div class="stat-card"><div style="font-size:1.75rem;margin-bottom:8px;">{ico}</div><div style="font-size:24px;font-weight:900;color:{c};">{val}</div><div style="font-size:11px;color:#64748b;font-weight:600;margin-top:3px;">{lbl}</div></div>""")
-        
-        h('<div style="font-size:17px;font-weight:800;color:#0f172a;margin:22px 0 13px;">🚀 Quick Start</div>')
-        qs_cols = st.columns(5)
-        for col, (pid, ico, t, d, c, n) in zip(qs_cols, [
-            ("profile", "📋", "Build Profile", "Set personality & goals", "#1d4ed8", "1"),
-            ("matches", "🎯", "View Matches", "See your AI career picks", "#7c3aed", "2"),
-            ("roadmap", "🗺️", "Get Roadmap", "Generate skill roadmap", "#0891b2", "3"),
-            ("resume", "📄", "Resume AI", "Upload for AI feedback", "#059669", "4"),
-            ("insights", "📊", "Market Data", "Salary & growth trends", "#ea580c", "5"),
-        ]):
-            with col:
-                h(f"""<div class="qs-card" style="border-top:3px solid {c};"><div style="width:30px;height:30px;border-radius:50%;background:{c};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;color:white;margin:0 auto 8px;">{n}</div><div style="font-size:12px;font-weight:800;color:#0f172a;margin-bottom:4px;">{ico} {t}</div><div style="font-size:10px;color:#64748b;line-height:1.55;margin-bottom:10px;">{d}</div></div>""")
-                if st.button("Open →", key=f"qs_{pid}", use_container_width=True):
-                    st.session_state.app_page = pid; st.rerun()
-
-        # Top Careers Charts (Static for brevity in this fix)
-        col1, col2 = st.columns(2)
-        with col1:
-            h('<div class="pf-card"><div style="font-size:14px;font-weight:800;color:#0f172a;margin-bottom:13px;">💰 Top 5 Highest-Paying Careers</div>')
-            for lbl, pct, val in [("Surgeon", 100, "$350K"), ("Doctor", 57, "$200K"), ("Investment Banker", 51, "$180K"), ("Cloud Architect", 41, "$145K"), ("AI/ML Engineer", 39, "$135K")]:
-                h(pbar(lbl, pct, 100, "#1d4d8", val))
-            h('</div>')
-        with col2:
-            h('<div class="pf-card"><div style="font-size:14px;font-weight:800;color:#0f172a;margin-bottom:13px;">🏢 Industries Breakdown</div>')
-            for lbl, pct, val, c in [("Technology", 100, "10 careers", "#1d4ed8"), ("Healthcare", 50, "5 careers", "#059669"), ("Finance", 30, "3 careers", "#d97706"), ("Engineering", 20, "2 careers", "#7c3aed"), ("Marketing", 20, "2 careers", "#0891b2"), ("Education", 20, "2 careers", "#db2777")]:
-                h(pbar(lbl, pct, 100, c, val))
-            h('</div>')
-
-    # (Other dashboard pages like Profile, Matches, Roadmap, Resume, etc. remain from previous logic)
-    # Note: In a real full app, these would be extensive blocks. 
-    # For this fix, we ensure the core landing page is perfect and dashboard works.
-
-# ═══════════════════════════════════════════════════════════
-# DASHBOARD
-# ═══════════════════════════════════════════════════════════
-# ═══════════════════════════════════════════════
-# DASHBOARD (Logic + Sidebar + Main Content)
-# ═══════════════════════════════════════════════
-elif pg == "dashboard":
-    # ── 1. LOGIN CHECK ──
-    if not st.session_state.logged_in: 
-        st.session_state.page="login"; 
-        st.rerun()
-
-    # ── 2. FIX: AUTO-SYNC USER DATA ──
-    # Agar profile khali hai toh 'accounts' se data laye
-    current_user = st.session_state.current_user
-    if not st.session_state.profile.get("name") and current_user in st.session_state.accounts:
-        st.session_state.profile.update(st.session_state.accounts[current_user])
-
-    # ── 3. FETCH VARIABLES ──
-    p = st.session_state.profile
-    uname = p.get("name", "User")  # Yahan user ka asli naam aayega
-    ap = st.session_state.app_page
-    country = p.get("country", "")
-    ini = "".join(w[0] for w in (uname+" ").split()[:2]).upper()
-
-    # ── 4. SIDEBAR (Yahan Sidebar hai - Har Page pe dikhega) ──
-    with st.sidebar:
-        h(f"""<div style="padding:22px 16px 16px;border-bottom:1px solid rgba(37,99,235,.25);">
-<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
-  <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#0f172a,#1d4ed8,#60a5fa);
-    display:flex;align-items:center;justify-content:center;font-size:18px;border:1.5px solid rgba(96,165,250,.3);flex-shrink:0;">🧭</div>
-  <div>
-    <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:900;color:white;letter-spacing:-.5px;line-height:1.1;">PathFinder<span style="background:linear-gradient(135deg,#60a5fa,#93c5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">.AI</span></div>
-    <div style="font-size:9px;color:rgba(147,197,253,.4);letter-spacing:1px;text-transform:uppercase;">Career Intelligence</div>
-  </div>
-</div>
-</div>
-<div style="padding:14px 14px 4px;font-size:8.5px;font-weight:800;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,.2);">Dashboard</div>""")
-
-        for pid,ico,label in [("home","🏠","Home"),("profile","📋","My Profile"),("matches","🎯","Career Matches"),("roadmap","🗺️","Skill Roadmap")]:
-            if st.button(f"{ico}  {label}", key=f"sb_{pid}", use_container_width=True):
-                st.session_state.app_page=pid; st.rerun()
-
-        h('<div style="padding:10px 14px 4px;font-size:9px;font-weight:700;letter-spacing:3.5px;text-transform:uppercase;color:rgba(255,255,255,.18);">Tools</div>')
-        for pid,ico,label in [("resume","📄","Resume Analyzer"),("chat","💬","AI Advisor"),("insights","📊","Market Insights"),("institutes","🏛️","Institute Finder"),("training","🤖","Model Training")]:
-            if st.button(f"{ico}  {label}", key=f"sb_{pid}", use_container_width=True):
-                st.session_state.app_page=pid; st.rerun()
-
-        h(f"""<div style="height:20px;"></div>
-<div style="margin:0 8px 8px;padding:12px;background:rgba(29,78,216,.14);border:1.5px solid rgba(29,78,216,.28);border-radius:12px;">
-<div style="font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(147,197,253,.45);margin-bottom:4px;">Signed in as</div>
-<div style="font-size:13px;font-weight:800;color:white;letter-spacing:-.2px;">{uname}</div>
-<div style="font-size:10.5px;color:#60a5fa;margin-top:2px;">{"🌍 "+country if country else "👤 Student"}</div>
+    _,cc,_=st.columns([1,1.4,1])
+    with cc:
+        h("""<div style="height:60px;"></div>""")
+        h("""<div class="auth-wrap fu">
+<div style="text-align:center;margin-bottom:32px;">
+  <div style="width:64px;height:64px;background:linear-gradient(135deg,#1d4ed8,#60a5fa);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 16px;box-shadow:0 8px 28px rgba(29,78,216,.4);transition:transform .3s;" onmouseover="this.style.transform='scale(1.08) rotate(-5deg)'" onmouseout="this.style.transform='scale(1) rotate(0)'">🧭</div>
+  <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:900;color:#0f172a;letter-spacing:-.8px;margin-bottom:6px;">Welcome Back</div>
+  <div style="font-size:13.5px;color:#64748b;font-family:'Plus Jakarta Sans',sans-serif;font-weight:500;">Sign in to your PathFinder account</div>
 </div>""")
-        
-        if st.button("🚪  Sign Out", key="logout", use_container_width=True):
-            st.session_state.logged_in=False; st.session_state.current_user=None
+        em=st.text_input("Email Address",placeholder="your@email.com",key="li_em")
+        pw=st.text_input("Password",placeholder="Your password",type="password",key="li_pw")
+        if st.button("🔐 Sign In →",use_container_width=True,key="doli"):
+            if em in st.session_state.accounts and st.session_state.accounts[em]["password"]==pw:
+                st.session_state.logged_in=True; st.session_state.current_user=em
+                st.session_state.profile.update({"name":st.session_state.accounts[em]["name"],"country":st.session_state.accounts[em].get("country","")})
+                st.session_state.page="dashboard"; st.session_state.app_page="home"; st.rerun()
+            else: st.error("Invalid email or password.")
+        h("""<div style="display:flex;align-items:center;gap:12px;margin:18px 0 12px;">
+<div style="flex:1;height:1.5px;background:linear-gradient(90deg,transparent,#dbeafe);"></div>
+<span style="font-size:11.5px;color:#94a3b8;font-weight:600;">or continue with</span>
+<div style="flex:1;height:1.5px;background:linear-gradient(90deg,#dbeafe,transparent);"></div>
+</div>""")
+        h('<button class="li-btn" onclick="alert(\'Connect LinkedIn API credentials to enable this.\')"><div style="width:22px;height:22px;border-radius:5px;background:#0a66c2;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:white;">in</div> Continue with LinkedIn</button>')
+        h('</div>')
+        if st.button("No account? Create one →",key="gsu",use_container_width=True):
+            st.session_state.page="signup"; st.rerun()
+        if st.button("← Back to Home",key="lhm"):
             st.session_state.page="landing"; st.rerun()
 
-        # ── Active page highlight via JS ──
-        h(f"""<script>
-(function(){{
-  var pageLabel={{"home":"Home","profile":"My Profile","matches":"Career Matches","roadmap":"Skill Roadmap","resume":"Resume Analyzer","chat":"AI Advisor","insights":"Market Insights","institutes":"Institute Finder","training":"Model Training"}};
-  var curr=pageLabel['{ap}']||'';
-  var allBtns=document.querySelectorAll('[data-testid="stSidebar"] .stButton > button');
-  if(curr){{
-    allBtns.forEach(function(b){{
-      if(b.textContent.indexOf(curr)>=0){{
-        b.style.background='linear-gradient(90deg,rgba(29,78,216,.38),rgba(29,78,216,.16))';
-        b.style.color='white';
-        b.style.borderColor='rgba(96,165,250,.5)';
-        b.style.borderLeft='3px solid #60a5fa';
-        b.style.paddingLeft='11px';
-        b.style.fontWeight='800';
-      }} else {{
-        b.style.background='transparent';
-        b.style.color='rgba(148,197,253,.55)';
-        b.style.borderLeft='3px solid transparent';
-        b.style.paddingLeft='14px';
-      }}
-    }});
-  }}
-}})();
-</script>""")
+# ══════════════════════════════════════════════════════
+# SIGNUP PAGE
+# ══════════════════════════════════════════════════════
+elif pg == "signup":
+    h("""<div class="auth-page-bg">
+<svg style="position:absolute;inset:0;width:100%;height:100%;opacity:.07;pointer-events:none;" xmlns="http://www.w3.org/2000/svg">
+<defs><pattern id="sg" width="36" height="36" patternUnits="userSpaceOnUse"><circle cx="18" cy="18" r="1.4" fill="#1d4ed8"/></pattern></defs>
+<rect width="100%" height="100%" fill="url(#sg)"/>
+</svg>
+</div>""")
+    _,cc,_=st.columns([1,1.6,1])
+    with cc:
+        h("""<div style="height:48px;"></div>""")
+        h("""<div class="auth-wrap fu">
+<div style="text-align:center;margin-bottom:28px;">
+  <div style="width:64px;height:64px;background:linear-gradient(135deg,#1d4ed8,#7c3aed);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 16px;box-shadow:0 8px 28px rgba(124,58,237,.35);transition:transform .3s;" onmouseover="this.style.transform='scale(1.08) rotate(-5deg)'" onmouseout="this.style.transform='scale(1) rotate(0)'">🚀</div>
+  <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:900;color:#0f172a;letter-spacing:-.8px;margin-bottom:6px;">Create Account</div>
+  <div style="font-size:13.5px;color:#64748b;font-family:'Plus Jakarta Sans',sans-serif;font-weight:500;">Start your career discovery — 100% free</div>
+  <div style="display:flex;gap:8px;justify-content:center;margin-top:10px;">
+    <span class="tip-badge">🎯 30+ Careers</span>
+    <span class="tip-badge">🤖 AI Powered</span>
+    <span class="tip-badge">🆓 Free Forever</span>
+  </div>
+</div>""")
+        ca,cb=st.columns(2)
+        with ca: nm=st.text_input("Full Name",placeholder="Your full name",key="su_nm")
+        with cb: em=st.text_input("Email",placeholder="your@email.com",key="su_em")
+        cc2,cd=st.columns(2)
+        with cc2:
+            pw=st.text_input("Password",placeholder="Create password",type="password",key="sup")
+            h('<div class="pw-rule">Max 8 chars · 1 uppercase · 1 digit</div>')
+        with cd:
+            ct=st.selectbox("Country",["Select country","Pakistan","India","United States","United Kingdom","UAE","Saudi Arabia","Canada","Australia","Other"],key="suc")
+        tr=st.checkbox("I agree to the Terms & Conditions",key="sut")
+        if st.button("Create Account →",use_container_width=True,key="dos"):
+            if not tr: st.error("Please accept the Terms & Conditions.")
+            elif ct=="Select country": st.error("Please select your country.")
+            elif not nm or not em or not pw: st.error("Please fill in all fields.")
+            elif em in st.session_state.accounts: st.error("Email already registered. Please log in.")
+            else:
+                ok,msg=validate_password(pw)
+                if not ok: st.error(msg)
+                else:
+                    st.session_state.accounts[em]={"name":nm,"password":pw,"country":ct}
+                    st.session_state.logged_in=True; st.session_state.current_user=em
+                    st.session_state.profile.update({"name":nm,"country":ct})
+                    st.session_state.page="dashboard"; st.session_state.app_page="home"; st.rerun()
+        h("""<div style="display:flex;align-items:center;gap:12px;margin:18px 0 12px;">
+<div style="flex:1;height:1.5px;background:linear-gradient(90deg,transparent,#dbeafe);"></div>
+<span style="font-size:11.5px;color:#94a3b8;font-weight:600;">or sign up with</span>
+<div style="flex:1;height:1.5px;background:linear-gradient(90deg,#dbeafe,transparent);"></div>
+</div>""")
+        h('<button class="li-btn" onclick="alert(\'Connect LinkedIn API credentials to enable this.\')"><div style="width:22px;height:22px;border-radius:5px;background:#0a66c2;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:white;">in</div> Continue with LinkedIn</button>')
+        h('</div>')
+        if st.button("Already have an account? Sign In →",key="gli",use_container_width=True):
+            st.session_state.page="login"; st.rerun()
+        if st.button("← Back to Home",key="shm"):
+            st.session_state.page="landing"; st.rerun()
 
-    # ── 5. MAIN CONTENT TOPBAR ──
-    page_titles = {"home":"🏠 Home","profile":"📋 My Profile","matches":"🎯 Career Matches","roadmap":"🗺️ Skill Roadmap","resume":"📄 Resume Analyzer","chat":"💬 AI Advisor","insights":"📊 Market Insights","institutes":"🏛️ Institute Finder","training":"🤖 Model Training"}
+# ══════════════════════════════════════════════════════
+# DASHBOARD
+# ══════════════════════════════════════════════════════
+elif pg == "dashboard":
+    if not st.session_state.logged_in: st.session_state.page="login"; st.rerun()
+    p=st.session_state.profile; uname=p.get("name","User"); ap=st.session_state.app_page
+
+    with st.sidebar:
+        ini="".join(w[0] for w in (uname+" ").split()[:2]).upper()
+
+        # ── SIDEBAR CSS (also defined globally above but reinforced here) ──
+        h("""<style>
+section[data-testid="stSidebar"]{
+  background:linear-gradient(180deg,#04081a 0%,#070d2e 30%,#0b1540 60%,#112058 100%)!important;
+  border-right:1px solid rgba(96,165,250,.13)!important;
+}
+section[data-testid="stSidebar"] .stButton>button{
+  background:transparent!important;color:rgba(148,197,253,.58)!important;
+  border:1px solid transparent!important;border-radius:10px!important;
+  font-size:13px!important;font-weight:600!important;text-align:left!important;
+  padding:10px 14px 10px 16px!important;width:100%!important;
+  font-family:'Plus Jakarta Sans',sans-serif!important;letter-spacing:.1px!important;
+  transition:all .22s cubic-bezier(.34,1.56,.64,1)!important;
+  margin-bottom:2px!important;
+}
+section[data-testid="stSidebar"] .stButton>button:hover{
+  background:linear-gradient(90deg,rgba(29,78,216,.28),rgba(29,78,216,.10))!important;
+  color:#c7dcff!important;border-color:rgba(96,165,250,.4)!important;
+  transform:translateX(7px)!important;
+  box-shadow:0 3px 18px rgba(29,78,216,.25),inset 3px 0 0 rgba(96,165,250,.7)!important;
+  padding-left:20px!important;
+}
+section[data-testid="stSidebar"] .stButton>button:active{transform:translateX(4px) scale(.98)!important;}
+section[data-testid="stSidebar"] .stButton>button:focus{
+  outline:none!important;color:white!important;
+  box-shadow:0 0 0 2px rgba(96,165,250,.35),inset 3px 0 0 #60a5fa!important;
+}
+</style>""")
+
+        # Logo
+        h(f"""<div style="padding:20px 14px 16px;border-bottom:1px solid rgba(96,165,250,.1);">
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+  <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#0a0f2e,#1d4ed8,#60a5fa);
+    display:flex;align-items:center;justify-content:center;font-size:19px;
+    border:1.5px solid rgba(96,165,250,.28);box-shadow:0 4px 16px rgba(29,78,216,.4);flex-shrink:0;">🧭</div>
+  <div>
+    <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:900;color:white;letter-spacing:-.5px;line-height:1.1;">PathFinder<span style="background:linear-gradient(135deg,#60a5fa,#93c5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">.AI</span></div>
+    <div style="font-size:9px;color:rgba(147,197,253,.35);letter-spacing:1.5px;text-transform:uppercase;margin-top:1px;">Career Intelligence</div>
+  </div>
+</div>
+<div style="background:rgba(29,78,216,.16);border:1.5px solid rgba(96,165,250,.18);border-radius:14px;padding:11px 13px;display:flex;align-items:center;gap:9px;">
+  <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#60a5fa);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:white;flex-shrink:0;border:2px solid rgba(255,255,255,.12);">{ini}</div>
+  <div style="flex:1;min-width:0;">
+    <div style="font-size:12.5px;font-weight:800;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{uname}</div>
+    <div style="font-size:10px;color:#60a5fa;margin-top:1px;">{"🌍 "+p.get("country","") if p.get("country") else "👤 Student"}</div>
+  </div>
+  <div style="width:8px;height:8px;border-radius:50%;background:#22c55e;border:1.5px solid rgba(255,255,255,.18);flex-shrink:0;"></div>
+</div>
+</div>""")
+
+        # Back to Home
+        h('<div style="padding:10px 12px 4px;">')
+        if st.button("🏠  Back to Home",key="sb_home_land",use_container_width=True):
+            st.session_state.page="landing"; st.rerun()
+        h('</div>')
+
+        # Dashboard nav
+        h('<div style="padding:4px 14px 5px;font-size:9px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:rgba(147,197,253,.25);">Dashboard</div>')
+        for pid,ico,label in [("home","🏠","Home"),("profile","📋","My Profile"),("matches","🎯","Career Matches"),("roadmap","🗺️","Skill Roadmap")]:
+            is_active=(ap==pid)
+            if is_active:
+                h(f"""<div style="margin:0 10px 2px;background:linear-gradient(90deg,rgba(29,78,216,.48),rgba(29,78,216,.18));
+border:1.5px solid rgba(96,165,250,.48);border-left:3px solid #60a5fa;
+border-radius:10px;padding:9px 14px;display:flex;align-items:center;gap:8px;cursor:default;">
+<span style="font-size:15px;">{ico}</span>
+<span style="font-size:13px;font-weight:800;color:white;font-family:'Plus Jakarta Sans',sans-serif;">{label}</span>
+<span style="margin-left:auto;width:7px;height:7px;border-radius:50%;background:#60a5fa;box-shadow:0 0 8px #60a5fa;"></span>
+</div>""")
+            else:
+                if st.button(f"{ico}  {label}",key=f"sb_{pid}",use_container_width=True):
+                    st.session_state.app_page=pid; st.rerun()
+
+        h('<div style="padding:10px 14px 4px;font-size:9px;font-weight:700;letter-spacing:3.5px;text-transform:uppercase;color:rgba(147,197,253,.2);">Tools</div>')
+        for pid,ico,label in [("resume","📄","Resume Analyzer"),("chat","💬","AI Advisor"),("insights","📊","Market Insights"),("institutes","🏛️","Institute Finder"),("training","🤖","Model Training")]:
+            is_active=(ap==pid)
+            if is_active:
+                h(f"""<div style="margin:0 10px 2px;background:linear-gradient(90deg,rgba(29,78,216,.48),rgba(29,78,216,.18));
+border:1.5px solid rgba(96,165,250,.48);border-left:3px solid #60a5fa;
+border-radius:10px;padding:9px 14px;display:flex;align-items:center;gap:8px;cursor:default;">
+<span style="font-size:15px;">{ico}</span>
+<span style="font-size:13px;font-weight:800;color:white;font-family:'Plus Jakarta Sans',sans-serif;">{label}</span>
+<span style="margin-left:auto;width:7px;height:7px;border-radius:50%;background:#60a5fa;box-shadow:0 0 8px #60a5fa;"></span>
+</div>""")
+            else:
+                if st.button(f"{ico}  {label}",key=f"sb_{pid}",use_container_width=True):
+                    st.session_state.app_page=pid; st.rerun()
+
+        h('<div style="height:14px;"></div>')
+        h('<div style="padding:0 10px 16px;">')
+        h('<div style="background:rgba(220,38,38,.09);border:1.5px solid rgba(220,38,38,.22);border-radius:10px;overflow:hidden;">')
+        if st.button("🚪  Sign Out",key="logout",use_container_width=True):
+            st.session_state.logged_in=False; st.session_state.current_user=None
+            st.session_state.page="landing"; st.rerun()
+        h('</div></div>')
+
+    # TOPBAR
+    page_titles={"home":"🏠 Home","profile":"📋 My Profile","matches":"🎯 Career Matches","roadmap":"🗺️ Skill Roadmap","resume":"📄 Resume Analyzer","chat":"💬 AI Advisor","insights":"📊 Market Insights","institutes":"🏛️ Institute Finder","training":"🤖 Model Training"}
+    page_icons={"home":"🏠","profile":"📋","matches":"🎯","roadmap":"🗺️","resume":"📄","chat":"💬","insights":"📊","institutes":"🏛️","training":"🤖"}
+    pg_icon=page_icons.get(ap,"🧭")
+    pg_name=page_titles.get(ap,"Dashboard").split(" ",1)[-1]
     h(f"""<div class="topbar">
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:800;color:#64748b;letter-spacing:-.2px;">{page_titles.get(ap,"Dashboard")}</div>
-<div style="display:flex;align-items:center;gap:9px;background:white;border:1.5px solid #bfdbfe;border-radius:99px;padding:5px 14px 5px 6px;transition:box-shadow .2s;" onmouseover="this.style.boxShadow='0 4px 16px rgba(29,78,216,.12)'" onmouseout="this.style.boxShadow='none'">
-<div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#60a5fa);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:white;font-family:'Plus Jakarta Sans',sans-serif;">{ini}</div>
-<span style="font-size:13px;font-weight:700;color:#0f172a;">{uname.split()[0] if " " in uname else uname}</span>
+<div style="display:flex;align-items:center;gap:10px;">
+  <div style="width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #bfdbfe;display:flex;align-items:center;justify-content:center;font-size:17px;">{pg_icon}</div>
+  <div>
+    <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:1.5px;text-transform:uppercase;font-family:'Plus Jakarta Sans',sans-serif;">PathFinder AI</div>
+    <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:800;color:#0f172a;letter-spacing:-.3px;">{pg_name}</div>
+  </div>
+</div>
+<div style="display:flex;align-items:center;gap:10px;">
+  <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:99px;padding:4px 12px;font-size:10.5px;font-weight:700;color:#059669;display:flex;align-items:center;gap:5px;">
+    <span style="width:7px;height:7px;background:#22c55e;border-radius:50%;display:inline-block;animation:blink 2s infinite;"></span> AI Active
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;background:white;border:1.5px solid #bfdbfe;border-radius:99px;padding:5px 14px 5px 5px;transition:all .2s;cursor:default;"
+    onmouseover="this.style.boxShadow='0 4px 16px rgba(29,78,216,.12)';this.style.borderColor='#93c5fd'" onmouseout="this.style.boxShadow='none';this.style.borderColor='#bfdbfe'">
+    <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:white;font-family:'Plus Jakarta Sans',sans-serif;">{ini}</div>
+    <div>
+      <div style="font-size:13px;font-weight:800;color:#0f172a;line-height:1.2;">{uname.split()[0]}</div>
+      <div style="font-size:9.5px;color:#64748b;font-weight:600;">{"🌍 "+country if country else "👤 Student"}</div>
+    </div>
+  </div>
 </div></div>""")
 
     h('<div style="padding:22px 26px;">')
 
-    # ════════════════ HOME PAGE CONTENT (Dynamic Data) ════════════════
+
+    # ════════════════ HOME ════════════════
     if ap == "home":
         h(f"""<div class="fu">
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:28px;font-weight:900;color:#0f172a;letter-spacing:-1.2px;margin-bottom:3px;transition:color .2s;cursor:default;" onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#0f172a'">Welcome back, {uname.split()[0] if " " in uname else uname}! 👋</div>
-<div style="font-size:13.5px;color:#64748b;margin-bottom:22px;font-weight:500;">Your career intelligence command center</div>
+<div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #bfdbfe;border-radius:20px;padding:24px 28px;margin-bottom:22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;position:relative;overflow:hidden;">
+  <div style="position:absolute;right:-30px;top:-30px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(96,165,250,.18),transparent 70%);pointer-events:none;"></div>
+  <div>
+    <div style="font-family:'Syne',sans-serif;font-size:clamp(22px,2.5vw,32px);font-weight:900;color:#0f172a;letter-spacing:-1px;margin-bottom:5px;">Welcome back, {uname.split()[0]}! 👋</div>
+    <div style="font-size:13.5px;color:#475569;font-weight:500;font-family:'Plus Jakarta Sans',sans-serif;">Your career intelligence command center — AI-powered, data-driven.</div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <span class="tip-badge">🤖 Llama 3 Active</span>
+    <span class="tip-badge">🎯 30+ Careers</span>
+  </div>
+</div>
 </div>""")
         c1,c2,c3,c4 = st.columns(4)
-        for col,ico,val,lbl,c in zip([c1,c2,c3,c4],["🎯","🤖","🌍","⚡"],["30+","Ready","12","Llama 3"],["Career Paths","ML Model","Industries","AI Engine"],["#1d4ed8","#7c3aed","#0891b2","#059669"]):
+        for col,ico,val,lbl,c,sub in zip([c1,c2,c3,c4],
+            ["🎯","🤖","🌍","⚡"],
+            ["30+","Ready","12","Llama 3"],
+            ["Career Paths","ML Model","Industries","AI Engine"],
+            ["#1d4ed8","#7c3aed","#0891b2","#059669"],
+            ["Matching database","Random Forest","Career sectors","70B Parameters"]):
             with col:
                 h(f"""<div class="stat-card">
-<div style="font-size:1.75rem;margin-bottom:8px;">{ico}</div>
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:24px;font-weight:900;color:{c};">{val}</div>
-<div style="font-size:11px;color:#64748b;font-weight:600;margin-top:3px;">{lbl}</div>
+<div style="font-size:1.9rem;margin-bottom:10px;filter:drop-shadow(0 2px 8px {c}33);">{ico}</div>
+<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:26px;font-weight:900;color:{c};line-height:1;">{val}</div>
+<div style="font-size:12px;color:#0f172a;font-weight:700;margin-top:5px;">{lbl}</div>
+<div style="font-size:10px;color:#94a3b8;font-weight:500;margin-top:2px;">{sub}</div>
 </div>""")
 
-        h('<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:17px;font-weight:800;color:#0f172a;margin:22px 0 13px;letter-spacing:-.4px;">🚀 Quick Start</div>')
+        h('<div class="sec-hdr" style="margin-top:8px;">🚀 Quick Start</div>')
         qs_cols = st.columns(5)
         for col,(pid,ico,t,d,c,n) in zip(qs_cols,[
             ("profile","📋","Build Profile","Set personality & goals","#1d4ed8","1"),
@@ -1183,45 +1210,66 @@ elif pg == "dashboard":
             ("insights","📊","Market Data","Salary & growth trends","#ea580c","5"),
         ]):
             with col:
-                h(f"""<div class="qs-card" style="border-top:3px solid {c};">
-<div style="width:30px;height:30px;border-radius:50%;background:{c};display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-weight:900;font-size:14px;color:white;margin:0 auto 8px;">{n}</div>
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:800;color:#0f172a;margin-bottom:4px;">{ico} {t}</div>
-<div style="font-size:10px;color:#64748b;line-height:1.55;margin-bottom:10px;">{d}</div>
+                h(f"""<div class="qs-card" style="border-top:4px solid {c};">
+<div style="width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,{c},{c}cc);display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-weight:900;font-size:16px;color:white;margin:0 auto 10px;box-shadow:0 4px 12px {c}44;">{n}</div>
+<div style="font-size:18px;margin-bottom:6px;">{ico}</div>
+<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:12.5px;font-weight:800;color:#0f172a;margin-bottom:5px;">{t}</div>
+<div style="font-size:10.5px;color:#64748b;line-height:1.6;margin-bottom:12px;">{d}</div>
 </div>""")
                 if st.button("Open →", key=f"qs_{pid}", use_container_width=True):
                     st.session_state.app_page=pid; st.rerun()
 
+        h('<div class="sec-hdr" style="margin-top:6px;">📊 Career Intelligence</div>')
         col1,col2 = st.columns(2)
         with col1:
-            h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:13px;letter-spacing:-.3px;">💰 Top 5 Highest-Paying Careers</div>')
+            h("""<div class="pf-card">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+  <div style="width:32px;height:32px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;border:1.5px solid #bfdbfe;">💰</div>
+  <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:800;color:#0f172a;letter-spacing:-.3px;">Top 5 Highest-Paying Careers</div>
+</div>""")
             for lbl,pct,val in [("Surgeon",100,"$350K"),("Doctor",57,"$200K"),("Investment Banker",51,"$180K"),("Cloud Architect",41,"$145K"),("AI/ML Engineer",39,"$135K")]:
                 h(pbar(lbl,pct,100,"#1d4ed8",val))
             h('</div>')
         with col2:
-            h('<div class="pf-card"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:13px;letter-spacing:-.3px;">🏢 Industries Breakdown</div>')
+            h("""<div class="pf-card">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+  <div style="width:32px;height:32px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;border:1.5px solid #bfdbfe;">🏢</div>
+  <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:800;color:#0f172a;letter-spacing:-.3px;">Industries Breakdown</div>
+</div>""")
             for lbl,pct,val,c in [("Technology",100,"10 careers","#1d4ed8"),("Healthcare",50,"5 careers","#059669"),("Finance",30,"3 careers","#d97706"),("Engineering",20,"2 careers","#7c3aed"),("Marketing",20,"2 careers","#0891b2"),("Education",20,"2 careers","#db2777")]:
                 h(pbar(lbl,pct,100,c,val))
             h('</div>')
 
+        h('<div class="sec-hdr">🏆 Career Spotlights</div>')
         c1,c2,c3 = st.columns(3)
-        for col,bc,cat,title,sub,img in [
-            (c1,"#059669","FASTEST GROWING","🤖 AI/ML Engineer","Technology · $135K/yr","https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=120&q=80"),
-            (c2,"#1d4ed8","LOWEST AUTO RISK","🏥 Doctor","Healthcare · $200K/yr","https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=120&q=80"),
-            (c3,"#d97706","HIGHEST EARNING","⚕️ Surgeon","Healthcare · $350K/yr","https://images.unsplash.com/photo-1551190822-a9333d879b1f?w=120&q=80"),
+        for col,bc,cat,title,sub,img,badge_txt in [
+            (c1,"#059669","FASTEST GROWING","🤖 AI/ML Engineer","Technology · $135K/yr","https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=120&q=80","📈 +40% growth"),
+            (c2,"#1d4ed8","LOWEST AUTO RISK","🏥 Doctor","Healthcare · $200K/yr","https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=120&q=80","🛡️ 5% risk"),
+            (c3,"#d97706","HIGHEST EARNING","⚕️ Surgeon","Healthcare · $350K/yr","https://images.unsplash.com/photo-1551190822-a9333d879b1f?w=120&q=80","💰 $350K/yr"),
         ]:
             with col:
-                h(f"""<div class="pf-card" style="border-left:4px solid {bc};">
-<div style="font-size:9.5px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:{bc};margin-bottom:10px;">{cat}</div>
-<div style="display:flex;align-items:center;gap:12px;">
-<img src="{img}" style="width:52px;height:52px;border-radius:12px;object-fit:cover;border:1.5px solid #bfdbfe;transition:transform .25s;" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
-<div>
-<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:900;color:#0f172a;margin-bottom:4px;">{title}</div>
-<div style="font-size:11.5px;color:#64748b;">{sub}</div>
+                h(f"""<div class="pf-card" style="border-top:4px solid {bc};padding-top:18px;">
+<div style="display:inline-flex;align-items:center;gap:5px;background:{bc}15;border:1.5px solid {bc}30;border-radius:99px;padding:3px 10px;font-size:9.5px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:{bc};margin-bottom:12px;">{cat}</div>
+<div style="display:flex;align-items:center;gap:13px;">
+<div style="position:relative;flex-shrink:0;">
+  <img src="{img}" style="width:56px;height:56px;border-radius:14px;object-fit:cover;border:2px solid #e0efff;transition:transform .3s,box-shadow .3s;" onmouseover="this.style.transform='scale(1.08)';this.style.boxShadow='0 8px 24px rgba(0,0,0,.15)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none'">
+</div>
+<div style="flex:1;">
+<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:900;color:#0f172a;margin-bottom:5px;">{title}</div>
+<div style="font-size:11.5px;color:#64748b;margin-bottom:6px;">{sub}</div>
+<span style="background:{bc}15;border:1.5px solid {bc}35;border-radius:99px;padding:3px 10px;font-size:10.5px;font-weight:700;color:{bc};">{badge_txt}</span>
 </div></div></div>""")
 
     # ════════════════ PROFILE ════════════════
     elif ap == "profile":
-        h('<div class="fu"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:28px;font-weight:900;color:#0f172a;letter-spacing:-1.2px;margin-bottom:3px;transition:color .2s;cursor:default;" onmouseover="this.style.color=\'#1d4ed8\'" onmouseout="this.style.color=\'#0f172a\'">My Profile</div><div style="font-size:13.5px;color:#64748b;margin-bottom:22px;font-weight:500;">The more detail you share, the more accurate your career matches will be.</div></div>')
+        h(f"""<div class="fu">
+<div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #bfdbfe;border-radius:20px;padding:22px 28px;margin-bottom:22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+  <div style="width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,#1d4ed8,#60a5fa);display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 6px 20px rgba(29,78,216,.35);flex-shrink:0;">📋</div>
+  <div>
+    <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:900;color:#0f172a;letter-spacing:-.8px;">My Profile</div>
+    <div style="font-size:13px;color:#475569;font-weight:500;margin-top:3px;font-family:'Plus Jakarta Sans',sans-serif;">The more detail you share, the more accurate your career matches will be.</div>
+  </div>
+</div></div>""")
         t1,t2,t3,t4 = st.tabs(["👤 Basic Information","🧠 Personality","🌟 Lifestyle Priorities","🔭 Long-Term Vision"])
         with t1:
             h('<div class="pf-card">')
@@ -1315,7 +1363,7 @@ elif pg == "dashboard":
 
     # ════════════════ CAREER MATCHES ════════════════
     elif ap == "matches":
-        h('<div class="fu"><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:28px;font-weight:900;color:#0f172a;letter-spacing:-1.2px;margin-bottom:3px;transition:color .2s;cursor:default;" onmouseover="this.style.color=\'#1d4ed8\'" onmouseout="this.style.color=\'#0f172a\'">Career Matches</div><div style="font-size:13.5px;color:#64748b;margin-bottom:22px;font-weight:500;">AI-powered compatibility scores based on your personality & market data</div></div>')
+        h('''<div class="fu"><div style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border:1.5px solid #ddd6fe;border-radius:20px;padding:22px 28px;margin-bottom:22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;"><div style="width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,#7c3aed,#a855f7);display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 6px 20px rgba(124,58,237,.35);flex-shrink:0;">🎯</div><div><div style="font-family:\'Syne\',sans-serif;font-size:24px;font-weight:900;color:#0f172a;letter-spacing:-.8px;">Career Matches</div><div style="font-size:13px;color:#475569;font-weight:500;margin-top:3px;font-family:\'Plus Jakarta Sans\',sans-serif;">AI-powered compatibility scores based on your personality & market data</div></div></div></div>''')
         if not st.session_state.matches: st.session_state.matches=match_careers(st.session_state.profile)
         matches=st.session_state.matches
         cr_v=p.get("creativity",5); so_v=p.get("social",5)
@@ -1491,31 +1539,30 @@ elif pg == "dashboard":
 
         else:
             # ── JOB OPPORTUNITIES VIEW ──
-            h(f"""<div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #bbf7d0;
+            h(f'''<div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #bbf7d0;
   border-radius:16px;padding:20px 24px;margin:10px 0 18px;">
 <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:900;color:#059669;margin-bottom:6px;">
-  💼 Job Opportunities for {sel}
+  ➖ Job Opportunities & Freelancing for {sel}
 </div>
 <div style="font-size:13px;color:#475569;font-family:'Plus Jakarta Sans',sans-serif;">
-  Here are the jobs, roles, and platforms you can apply to with a <strong style="color:#0f172a;">{sel}</strong> background.
+  Jobs, freelancing, Upwork gigs, remote work, and career platforms for a <strong style="color:#0f172a;">{sel}</strong>.
 </div>
-</div>""")
+</div>''')
 
-            # Job roles based on career
+            # Job roles
             job_roles_map = {
                 "Software Engineer":["Junior Developer","Backend Engineer","Full-Stack Developer","Mobile App Developer","Software Architect","Tech Lead","CTO"],
                 "Data Scientist":["Data Analyst","ML Engineer","Business Intelligence Analyst","Research Scientist","AI Researcher","Data Science Manager"],
                 "UX Designer":["UI Designer","Product Designer","UX Researcher","Interaction Designer","Design Lead","Head of Design"],
                 "AI/ML Engineer":["ML Engineer","Deep Learning Engineer","NLP Engineer","Computer Vision Engineer","AI Research Scientist","AI Lead"],
-                "Doctor":["General Practitioner","Specialist Physician","Surgeon","Medical Officer","Clinical Researcher","Hospital Director"],
-                "Investment Banker":["Financial Analyst","Associate Banker","VP Investment Banking","Portfolio Manager","Fund Manager","Managing Director"],
+                "Graphic Designer":["Brand Designer","Freelance Illustrator","Social Media Designer","Logo Designer","Creative Director","Art Director"],
+                "Marketing Manager":["SEO Specialist","Content Marketer","Digital Marketer","Brand Strategist","Growth Hacker","CMO"],
             }
             roles = job_roles_map.get(sel, [
                 f"Junior {sel}", f"Mid-Level {sel}", f"Senior {sel}",
                 f"{sel} Specialist", f"Lead {sel}", f"{sel} Manager", f"Head of {career_obj['industry']}"
             ])
-
-            h('<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:15px;font-weight:800;color:#0f172a;margin-bottom:14px;">🏆 Roles You Can Apply For</div>')
+            h('<div style="font-family:''Plus Jakarta Sans'',sans-serif;font-size:15px;font-weight:800;color:#0f172a;margin-bottom:14px;">🏆 Roles You Can Apply For</div>')
             job_cols = st.columns(3)
             for i, role in enumerate(roles):
                 with job_cols[i % 3]:
@@ -1524,49 +1571,104 @@ elif pg == "dashboard":
                     salary_est = career_obj['salary'] // 1000
                     level_mult = [0.4, 0.6, 0.8, 0.9, 1.0, 1.2, 1.5][i % 7]
                     est_sal = int(salary_est * level_mult)
-                    h(f"""<div style="background:white;border:1.5px solid #e0efff;border-radius:14px;padding:16px;
-  margin-bottom:14px;border-left:4px solid {cj};transition:all .28s;"
-  onmouseover="this.style.transform='translateY(-5px)';this.style.boxShadow='0 16px 36px rgba(29,78,216,.12)'"
-  onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='none'">
+                    h(f'''<div style="background:white;border:1.5px solid #e0efff;border-radius:14px;padding:16px;margin-bottom:14px;border-left:4px solid {cj};transition:all .28s;" onmouseover="this.style.transform='translateY(-5px)';this.style.boxShadow='0 16px 36px rgba(29,78,216,.12)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='none'">
 <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:6px;">{role}</div>
 <div style="font-size:11.5px;color:{cj};font-weight:700;margin-bottom:4px;">💰 ~${est_sal}K–${int(est_sal*1.3)}K/yr</div>
 <div style="font-size:11px;color:#64748b;font-weight:500;">{career_obj['industry']} · {"Remote" if career_obj['remote']>=7 else "Hybrid" if career_obj['remote']>=5 else "On-site"}</div>
-</div>""")
+</div>''')
 
-            h('<div style="height:6px;"></div>')
-            h('<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:15px;font-weight:800;color:#0f172a;margin:18px 0 14px;">🌐 Where to Apply</div>')
+            # Freelancing platforms
+            h(f'''<div style="background:linear-gradient(135deg,#fdf4ff,#f5f3ff);border:1.5px solid #e9d5ff;border-radius:16px;padding:20px 24px;margin:14px 0 16px;">
+<div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:900;color:#7c3aed;margin-bottom:6px;">💻 Freelancing & Remote Work Platforms</div>
+<div style="font-size:12.5px;color:#475569;font-family:'Plus Jakarta Sans',sans-serif;">Earn in USD/EUR from anywhere — these platforms hire {sel} freelancers globally.</div>
+</div>''')
+            freelance_platforms = [
+                ("Upwork","💼","https://upwork.com",f"Top platform for {sel} contracts","#7c3aed","Most Popular"),
+                ("Fiverr","🎯","https://fiverr.com","Package-based gigs — build profile fast","#059669","Best Starter"),
+                ("Toptal","⭐","https://toptal.com","Top 3% talent — premium pay","#1d4ed8","Elite"),
+                ("Freelancer.com","🔍","https://freelancer.com","Bid on global projects","#0891b2","Competitive"),
+                ("PeoplePerHour","⏰","https://peopleperhour.com","Hourly contracts EU/UK","#d97706","Europe"),
+                ("Contra","📋","https://contra.com","Commission-free freelancing","#dc2626","No Fees"),
+                ("Remote.co","🌍","https://remote.co","100% remote jobs worldwide","#0d9488","Remote Only"),
+                ("LinkedIn ProFinder","📋","https://linkedin.com/profinder","Professional service marketplace","#0a66c2","Professional"),
+            ]
+            fp_cols = st.columns(4)
+            for i, (name, ico, url, desc, clr, tag) in enumerate(freelance_platforms):
+                with fp_cols[i % 4]:
+                    h(f'''<a href="{url}" target="_blank" style="display:block;background:white;border:1.5px solid #e9d5ff;border-radius:13px;padding:14px;margin-bottom:14px;text-decoration:none;transition:all .25s;" onmouseover="this.style.transform='translateY(-4px)';this.style.borderColor='{clr}';this.style.boxShadow='0 12px 28px rgba(124,58,237,.14)'" onmouseout="this.style.transform='translateY(0)';this.style.borderColor='#e9d5ff';this.style.boxShadow='none'">
+<div style="font-size:22px;margin-bottom:7px;">{ico}</div>
+<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:12.5px;font-weight:800;color:#0f172a;margin-bottom:3px;">{name}</div>
+<div style="font-size:10.5px;color:#64748b;font-weight:500;margin-bottom:6px;">{desc}</div>
+<span style="background:{clr}22;border:1px solid {clr}44;color:{clr};font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:99px;">{tag}</span>
+</a>''')
+
+            h('<div style="font-family:''Plus Jakarta Sans'',sans-serif;font-size:15px;font-weight:800;color:#0f172a;margin:6px 0 14px;">🌐 Traditional Job Platforms</div>')
             job_platforms_rm = [
                 ("LinkedIn Jobs","💼","https://linkedin.com/jobs","Best for professional roles"),
                 ("Indeed","🔍","https://indeed.com","Largest job board globally"),
                 ("Glassdoor","🚪","https://glassdoor.com","Company reviews + jobs"),
                 ("Rozee.pk","🇵🇰","https://rozee.pk","Best for Pakistan jobs"),
-                ("Upwork","💻","https://upwork.com","Freelance opportunities"),
-                ("AngelList","🚀","https://angel.co","Startups & tech companies"),
-                ("Remote.co","🌍","https://remote.co","100% remote only jobs"),
+                ("AngelList","🚀","https://angel.co","Startups & tech"),
+                ("Mustakbil","🌟","https://mustakbil.com","Pakistan & Gulf jobs"),
                 ("Internshala","🎓","https://internshala.com","Internships & entry-level"),
+                ("Glassdoor","📈","https://glassdoor.com","Salary benchmarks + jobs"),
             ]
             jp_cols = st.columns(4)
             for i, (name, ico, url, desc) in enumerate(job_platforms_rm):
                 with jp_cols[i % 4]:
-                    h(f"""<a href="{url}" target="_blank" style="display:block;background:white;border:1.5px solid #e0efff;
-  border-radius:13px;padding:14px;margin-bottom:14px;text-decoration:none;
-  transition:all .25s;"
-  onmouseover="this.style.transform='translateY(-4px)';this.style.borderColor='#1d4ed8';this.style.boxShadow='0 12px 28px rgba(29,78,216,.14)'"
-  onmouseout="this.style.transform='translateY(0)';this.style.borderColor='#e0efff';this.style.boxShadow='none'">
+                    h(f'''<a href="{url}" target="_blank" style="display:block;background:white;border:1.5px solid #e0efff;border-radius:13px;padding:14px;margin-bottom:14px;text-decoration:none;transition:all .25s;" onmouseover="this.style.transform='translateY(-4px)';this.style.borderColor='#1d4ed8';this.style.boxShadow='0 12px 28px rgba(29,78,216,.14)'" onmouseout="this.style.transform='translateY(0)';this.style.borderColor='#e0efff';this.style.boxShadow='none'">
 <div style="font-size:24px;margin-bottom:7px;">{ico}</div>
 <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:12.5px;font-weight:800;color:#0f172a;margin-bottom:3px;">{name}</div>
 <div style="font-size:11px;color:#64748b;font-weight:500;">{desc}</div>
-</a>""")
+</a>''')
 
-            h(f"""<div class="pf-card" style="border-left:4px solid #d97706;margin-top:8px;">
-<div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:900;color:#d97706;margin-bottom:10px;">
-  🔥 Burnout Warning for {sel}
-</div>
-<div style="font-size:13px;color:#475569;line-height:1.85;font-family:'Plus Jakarta Sans',sans-serif;">
-  {"⚠️ <strong style='color:#dc2626;'>High Burnout Risk:</strong> " + sel + " is known for intense workloads. Ensure you genuinely love the field before committing. Negotiate work-life balance in your contract." if career_obj['burnout'] >= 7 else "✅ <strong style='color:#059669;'>Manageable Burnout Risk:</strong> " + sel + " has a relatively healthy work-life balance. Still — advocate for your boundaries early in your career."}
-</div>
-</div>""")
+            # AI-powered job search
+            if "job_search_result" not in st.session_state: st.session_state.job_search_result = ""
+            if st.button(f"🤖 AI: Complete Freelancing & Job Guide for {sel}", use_container_width=True, key="ai_job_search"):
+                with st.spinner("AI analyzing job market, Upwork strategy, and income growth tips..."):
+                    sys_js = f"""You are a career job market expert. User wants to become a {sel} (age {age_v}, from {rm_country if rm_country!="Select country" else "Pakistan/South Asia"}).
 
+Provide a DETAILED guide:
+
+💼 SECTION 1 — TOP 6 JOB TITLES TO APPLY FOR
+List job titles with USD salary ranges (entry/mid/senior).
+
+💻 SECTION 2 — UPWORK & FIVERR FREELANCING STRATEGY
+- Exact services to offer on Upwork as a {sel}
+- Winning profile tips specific to {sel}
+- Hourly rate: beginner $X/hr, mid $Y/hr, expert $Z/hr
+- Top keywords to use in your Upwork profile
+- Realistic timeline to first client (weeks/months)
+- Best Fiverr gig ideas for {sel}
+
+🌐 SECTION 3 — REMOTE WORK & USD INCOME
+- How to find USD-paying remote jobs from Pakistan/South Asia
+- Best remote platforms for {sel}
+- Countries/markets to target for highest pay
+
+📈 SECTION 4 — INCOME GROWTH ROADMAP
+- Month 1-3: Expected income
+- Month 3-6: Expected income
+- Year 1: Expected income  
+- Year 2+: Scaling to $3000-$5000/month target
+
+🔑 SECTION 5 — MUST-HAVE SKILLS FOR GETTING HIRED
+- Top 5 in-demand skills that immediately get contracts
+- Certifications that boost Upwork/LinkedIn profile for {sel}
+
+Be practical, specific, age-appropriate for {age_v} years old."""
+                    st.session_state.job_search_result = ai_call([{"role":"user","content":f"Complete job & freelancing guide for {sel}, age {age_v}"}], sys_js, 1400)
+
+            if st.session_state.job_search_result:
+                h('<div class="pf-card fu"><div style="font-family:''Plus Jakarta Sans'',sans-serif;font-size:14px;font-weight:800;color:#0f172a;margin-bottom:11px;">🤖 AI Job Market Intelligence</div>')
+                h(f'<div style="font-size:13.5px;color:#1e293b;line-height:1.95;white-space:pre-wrap;font-family:''Plus Jakarta Sans'',sans-serif;font-weight:500;">{st.session_state.job_search_result}</div>')
+                h('</div>')
+
+            burnout_warn = "⚠️ <strong style='color:#dc2626;'>High Burnout Risk:</strong> " + sel + " is known for intense workloads. Ensure you genuinely love this field. Negotiate work-life balance in contracts." if career_obj['burnout'] >= 7 else "✅ <strong style='color:#059669;'>Manageable Burnout Risk:</strong> " + sel + " has a healthy work-life balance. Still — advocate for your boundaries early."
+            h(f'''<div class="pf-card" style="border-left:4px solid #d97706;margin-top:8px;">
+<div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:900;color:#d97706;margin-bottom:10px;">🔥 Burnout Warning for {sel}</div>
+<div style="font-size:13px;color:#475569;line-height:1.85;font-family:'Plus Jakarta Sans',sans-serif;">{burnout_warn}</div>
+</div>''')
 
         # ── Career Stats ──
         col_a,col_b=st.columns(2)
@@ -1812,3 +1914,4 @@ elif pg == "dashboard":
             h('</div></div>')
 
     h('</div>')  # close padding wrapper
+    
