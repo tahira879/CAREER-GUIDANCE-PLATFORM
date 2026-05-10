@@ -497,23 +497,37 @@ PF_COLORS      = ["#3D52A0","#7091E6","#ADBBDA","#22c55e","#f59e0b","#ef4444","#
 # ═══════════════════════════════════════════════════════════════════
 # GROQ CLIENT
 # ═══════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════
+# GROQ CLIENT (Updated for Secrets & Deployment)
+# ═══════════════════════════════════════════════════════════════════
 @st.cache_resource
 def get_groq():
-    k = os.getenv("GROQ_API_KEY","")
-    if not k: return None
+    # Pehle Streamlit Secrets check karega (Deployment ke liye)
+    # Agar wahan nahi mili toh environment variables check karega (Local testing ke liye)
+    try:
+        k = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY", "")
+    except:
+        k = os.getenv("GROQ_API_KEY", "")
+        
+    if not k: 
+        return None
     return Groq(api_key=k)
 
 def groq_complete(messages, system="", max_tokens=2048):
     client = get_groq()
-    if not client: return "⚠️ GROQ_API_KEY not set in .env"
+    if not client: 
+        return "⚠️ GROQ_API_KEY missing! Please add it to Streamlit Secrets or .env file."
+    
     msgs = ([{"role":"system","content":system}] if system else []) + messages
     try:
         r = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=msgs, max_tokens=max_tokens
+            messages=msgs, 
+            max_tokens=max_tokens
         )
         return r.choices[0].message.content
-    except Exception as e: return f"⚠️ {e}"
+    except Exception as e: 
+        return f"⚠️ API Error: {str(e)}"
 
 # ═══════════════════════════════════════════════════════════════════
 # CAREER KNOWLEDGE BASE (built-in fallback — 55 careers)
@@ -684,12 +698,27 @@ def augment(df, n=600):
 
 def do_train(df, n_aug=600):
     aug = augment(df, n_aug)
-    X = aug[FEATURE_COLS].values
-    y = aug["career"].values
+    
+    # FIX: Explicitly convert to numpy arrays to avoid PyArrow errors on Cloud
+    # Ensure features are float numpy arrays
+    X = aug[FEATURE_COLS].astype(float).to_numpy()
+    # Ensure target (career names) is a standard object numpy array (not PyArrow string)
+    y = aug["career"].to_numpy(dtype=object)
+    
     sc = MinMaxScaler()
     Xs = sc.fit_transform(X)
+    
+    # train_test_split now receives standard numpy arrays
     Xtr, Xte, ytr, yte = train_test_split(Xs, y, test_size=.2, random_state=42)
+    
     rf = RandomForestClassifier(n_estimators=200, max_depth=12, random_state=42, n_jobs=-1)
+    rf.fit(Xtr, ytr)
+    acc = accuracy_score(yte, rf.predict(Xte))
+    cv = cross_val_score(rf, Xs, y, cv=5)
+    joblib.dump(rf, MODEL_PATH)
+    joblib.dump(sc, SCALER_PATH)
+    return {"model":rf,"scaler":sc,"accuracy":acc,"cv_mean":cv.mean(),"cv_std":cv.std(),
+            "fi":dict(zip(FEATURE_COLS, rf.feature_importances_)),"n_samples":len(aug)}
     rf.fit(Xtr, ytr)
     acc = accuracy_score(yte, rf.predict(Xte))
     cv = cross_val_score(rf, Xs, y, cv=5)
@@ -932,6 +961,8 @@ def render_footer():
       <div class="footer-bottom">© 2026 PathFinder AI &nbsp;|&nbsp; Career Guidance Platform &nbsp;|&nbsp; All rights reserved.</div>
     </div>""", unsafe_allow_html=True)
 
+
+
 # ═══════════════════════════════════════════════════════════════════
 # PAGE: LANDING
 # ═══════════════════════════════════════════════════════════════════
@@ -973,22 +1004,764 @@ def page_landing():
 # ═══════════════════════════════════════════════════════════════════
 # PAGE: ABOUT
 # ═══════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════
+# PAGE: ABOUT (MEGA VISUAL UPGRADE)
+# ═══════════════════════════════════════════════════════════════════
 def page_about():
     public_nav_buttons()
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("<div style='padding:60px 8%;'>", unsafe_allow_html=True)
-    st.markdown("<h1>The Architecture of PathFinder</h1>", unsafe_allow_html=True)
+
+    # ── ALL CSS FOR ABOUT PAGE ────────────────────────────────────
     st.markdown("""
-    <div class="glass-card" style="min-height:auto;text-align:center;">
-      <p style="font-size:18px;line-height:1.9;color:#2D3748;max-width:860px;margin:0 auto;">
+    <style>
+    /* ── HERO GRADIENT SECTION ── */
+    .about-hero {
+      background: linear-gradient(135deg, #0f0c29 0%, #302b63 40%, #24243e 100%);
+      border-radius: 32px;
+      padding: 70px 50px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 50px;
+    }
+    .about-hero::before {
+      content: '';
+      position: absolute;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background: radial-gradient(circle, rgba(112,145,230,0.15) 0%, transparent 60%);
+      animation: heroGlow 6s ease-in-out infinite;
+    }
+    @keyframes heroGlow {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(30px, -20px) scale(1.1); }
+    }
+
+    /* ── MAIN HEADING — NEON HOVER ── */
+    .about-heading {
+      font-family: 'Syne', sans-serif;
+      font-size: 52px;
+      font-weight: 900;
+      background: linear-gradient(90deg, #EDE8F5, #ADBBDA, #7091E6, #ADBBDA, #EDE8F5);
+      background-size: 300% 100%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmer 4s linear infinite;
+      cursor: default;
+      transition: all 0.4s ease;
+      position: relative;
+      z-index: 2;
+    }
+    .about-heading:hover {
+      filter: brightness(1.3);
+      text-shadow: 0 0 20px rgba(112,145,230,0.6), 0 0 40px rgba(61,82,160,0.4);
+      transform: scale(1.04);
+      letter-spacing: 2px;
+    }
+    @keyframes shimmer {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 300% 50%; }
+    }
+
+    /* ── SUB HEADING — COLOR WAVE HOVER ── */
+    .about-subheading {
+      font-family: 'Syne', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: #ADBBDA;
+      margin-top: 16px;
+      transition: all 0.4s ease;
+      position: relative;
+      z-index: 2;
+    }
+    .about-subheading:hover {
+      color: #fff;
+      text-shadow: 0 0 12px #7091E6, 0 0 30px #3D52A0;
+      transform: translateY(-3px);
+    }
+
+    /* ── DESCRIPTION TEXT ── */
+    .about-desc {
+      font-size: 17px;
+      line-height: 2;
+      color: #c4cae8;
+      max-width: 820px;
+      margin: 28px auto 0;
+      position: relative;
+      z-index: 2;
+    }
+    .about-desc b {
+      color: #7091E6;
+      text-shadow: 0 0 8px rgba(112,145,230,0.3);
+    }
+
+    /* ── FLOATING PARTICLES ── */
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      opacity: 0.25;
+      animation: float 8s ease-in-out infinite;
+    }
+    .particle:nth-child(1) { width:80px;height:80px;background:#3D52A0;top:10%;left:8%;animation-delay:0s; }
+    .particle:nth-child(2) { width:50px;height:50px;background:#7091E6;top:60%;left:15%;animation-delay:2s; }
+    .particle:nth-child(3) { width:120px;height:120px;background:#ADBBDA;top:20%;right:10%;animation-delay:1s; }
+    .particle:nth-child(4) { width:40px;height:40px;background:#22c55e;bottom:15%;right:20%;animation-delay:3s; }
+    .particle:nth-child(5) { width:60px;height:60px;background:#f59e0b;top:50%;right:5%;animation-delay:4s; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      33% { transform: translateY(-25px) rotate(120deg); }
+      66% { transform: translateY(15px) rotate(240deg); }
+    }
+
+    /* ── SECTION TITLES — GLOW UNDERLINE HOVER ── */
+    .section-glow {
+      font-family: 'Syne', sans-serif;
+      font-size: 38px;
+      font-weight: 900;
+      color: #3D52A0;
+      text-align: center;
+      margin-bottom: 40px;
+      position: relative;
+      display: inline-block;
+      cursor: default;
+      transition: all 0.4s ease;
+    }
+    .section-glow::after {
+      content: '';
+      position: absolute;
+      bottom: -8px; left: 0;
+      width: 0; height: 4px;
+      background: linear-gradient(90deg, #3D52A0, #7091E6, #22c55e);
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+    .section-glow:hover::after { width: 100%; }
+    .section-glow:hover {
+      color: #7091E6;
+      text-shadow: 0 0 15px rgba(112,145,230,0.4);
+      transform: scale(1.05);
+    }
+
+    /* ── FLIP CARD SYSTEM ── */
+    .flip-container {
+      perspective: 1200px;
+      width: 100%;
+      height: 380px;
+      margin-bottom: 24px;
+      cursor: pointer;
+    }
+    .flip-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-style: preserve-3d;
+    }
+    .flip-container:hover .flip-inner { transform: rotateY(180deg); }
+    .flip-front, .flip-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border-radius: 24px;
+      overflow: hidden;
+    }
+    .flip-front {
+      background: white;
+      border: 2px solid rgba(61,82,160,0.1);
+      box-shadow: 0 8px 32px rgba(61,82,160,0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px;
+    }
+    .flip-back {
+      background: linear-gradient(135deg, #1e2d6b 0%, #3D52A0 50%, #7091E6 100%);
+      transform: rotateY(180deg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px;
+      color: white;
+    }
+    .flip-front img {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 4px solid #3D52A0;
+      box-shadow: 0 6px 20px rgba(61,82,160,0.3);
+      transition: transform 0.4s;
+    }
+    .flip-container:hover .flip-front img {
+      transform: scale(1.1);
+      box-shadow: 0 8px 30px rgba(61,82,160,0.5);
+    }
+    .flip-name {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.3rem;
+      font-weight: 900;
+      color: #3D52A0;
+      margin-top: 18px;
+      transition: all 0.3s;
+    }
+    .flip-container:hover .flip-name {
+      color: #7091E6;
+    }
+    .flip-role {
+      font-size: 0.85rem;
+      color: #8697C4;
+      font-weight: 600;
+      margin-top: 6px;
+    }
+    .flip-hint {
+      font-size: 0.75rem;
+      color: #ADBBDA;
+      margin-top: 14px;
+      opacity: 0.7;
+    }
+    .flip-back-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 900;
+      margin-bottom: 14px;
+    }
+    .flip-back-text {
+      font-size: 0.88rem;
+      line-height: 1.7;
+      text-align: center;
+      max-width: 280px;
+      opacity: 0.92;
+    }
+    .flip-back-link {
+      margin-top: 18px;
+      display: inline-block;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      padding: 8px 20px;
+      border-radius: 999px;
+      color: white;
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 700;
+      transition: all 0.3s;
+    }
+    .flip-back-link:hover {
+      background: rgba(255,255,255,0.3);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(255,255,255,0.2);
+    }
+
+    /* ── FEATURE CARDS — 3D TILT HOVER ── */
+    .feature-card {
+      background: white;
+      border-radius: 24px;
+      padding: 36px 28px;
+      border: 2px solid rgba(61,82,160,0.08);
+      box-shadow: 0 8px 32px rgba(61,82,160,0.08);
+      text-align: center;
+      transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 4px;
+      background: linear-gradient(90deg, #3D52A0, #7091E6, #22c55e, #f59e0b);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.5s ease;
+    }
+    .feature-card:hover::before { transform: scaleX(1); }
+    .feature-card:hover {
+      transform: translateY(-14px) rotateX(2deg);
+      box-shadow: 0 24px 60px rgba(61,82,160,0.2);
+      border-color: #7091E6;
+    }
+    .feature-icon {
+      font-size: 3rem;
+      margin-bottom: 16px;
+      display: inline-block;
+      transition: transform 0.5s;
+    }
+    .feature-card:hover .feature-icon {
+      transform: scale(1.2) rotate(10deg);
+    }
+    .feature-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #3D52A0;
+      margin-bottom: 10px;
+      transition: color 0.3s;
+    }
+    .feature-card:hover .feature-title { color: #7091E6; }
+    .feature-desc {
+      font-size: 0.88rem;
+      color: #64748b;
+      line-height: 1.7;
+    }
+
+    /* ── TECH STACK BADGES ── */
+    .tech-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: white;
+      border: 2px solid rgba(61,82,160,0.1);
+      border-radius: 16px;
+      padding: 12px 22px;
+      margin: 6px;
+      font-weight: 700;
+      font-size: 0.88rem;
+      color: #1a1a2e;
+      transition: all 0.4s ease;
+      box-shadow: 0 2px 10px rgba(61,82,160,0.06);
+    }
+    .tech-badge:hover {
+      transform: translateY(-6px) scale(1.05);
+      box-shadow: 0 12px 30px rgba(61,82,160,0.2);
+      border-color: #7091E6;
+      color: #3D52A0;
+    }
+    .tech-badge img {
+      width: 28px; height: 28px;
+      border-radius: 6px;
+    }
+
+    /* ── STATS ROW ── */
+    .stat-box {
+      background: white;
+      border-radius: 20px;
+      padding: 28px 20px;
+      text-align: center;
+      border: 2px solid rgba(61,82,160,0.08);
+      box-shadow: 0 4px 20px rgba(61,82,160,0.08);
+      transition: all 0.4s ease;
+    }
+    .stat-box:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 16px 40px rgba(61,82,160,0.18);
+      border-color: #7091E6;
+    }
+    .stat-number {
+      font-family: 'Syne', sans-serif;
+      font-size: 2.8rem;
+      font-weight: 900;
+      background: linear-gradient(135deg, #3D52A0, #7091E6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      transition: all 0.3s;
+    }
+    .stat-box:hover .stat-number {
+      transform: scale(1.1);
+    }
+    .stat-label {
+      font-size: 0.85rem;
+      color: #8697C4;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+
+    /* ── TIMELINE ── */
+    .timeline-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+      margin-bottom: 30px;
+      position: relative;
+    }
+    .timeline-dot {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3D52A0, #7091E6);
+      flex-shrink: 0;
+      margin-top: 6px;
+      box-shadow: 0 0 0 4px rgba(61,82,160,0.15);
+      transition: all 0.3s;
+    }
+    .timeline-item:hover .timeline-dot {
+      transform: scale(1.4);
+      box-shadow: 0 0 0 6px rgba(112,145,230,0.3), 0 0 20px rgba(61,82,160,0.3);
+    }
+    .timeline-content {
+      background: white;
+      border-radius: 16px;
+      padding: 20px 24px;
+      border: 2px solid rgba(61,82,160,0.08);
+      box-shadow: 0 4px 16px rgba(61,82,160,0.06);
+      flex: 1;
+      transition: all 0.4s;
+    }
+    .timeline-item:hover .timeline-content {
+      transform: translateX(8px);
+      box-shadow: 0 8px 30px rgba(61,82,160,0.15);
+      border-color: #7091E6;
+    }
+    .timeline-title {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1rem;
+      color: #3D52A0;
+      margin-bottom: 4px;
+    }
+    .timeline-desc {
+      font-size: 0.85rem;
+      color: #64748b;
+      line-height: 1.6;
+    }
+
+    /* ── MISSION QUOTE BOX ── */
+    .mission-box {
+      background: linear-gradient(135deg, #3D52A0 0%, #7091E6 100%);
+      border-radius: 28px;
+      padding: 50px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      margin: 40px 0;
+    }
+    .mission-box::before {
+      content: '"';
+      position: absolute;
+      top: -20px; left: 30px;
+      font-size: 180px;
+      font-family: Georgia, serif;
+      color: rgba(255,255,255,0.08);
+      line-height: 1;
+    }
+    .mission-text {
+      font-size: 22px;
+      line-height: 1.8;
+      color: white;
+      font-weight: 600;
+      max-width: 750px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 2;
+    }
+    .mission-text b {
+      color: #EDE8F5;
+      text-shadow: 0 0 10px rgba(237,232,245,0.3);
+    }
+
+    /* ── IMAGE HOVER ZOOM + OVERLAY ── */
+    .about-img-card {
+      border-radius: 24px;
+      overflow: hidden;
+      position: relative;
+      height: 220px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px rgba(61,82,160,0.12);
+      cursor: pointer;
+    }
+    .about-img-card img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transition: transform 0.6s ease;
+    }
+    .about-img-card:hover img { transform: scale(1.15); }
+    .about-img-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(0deg, rgba(61,82,160,0.85) 0%, transparent 60%);
+      display: flex;
+      align-items: flex-end;
+      padding: 24px;
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+    .about-img-card:hover .about-img-overlay { opacity: 1; }
+    .about-img-label {
+      color: white;
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.1rem;
+      transform: translateY(10px);
+      transition: transform 0.4s;
+    }
+    .about-img-card:hover .about-img-label { transform: translateY(0); }
+
+    /* ── COLORFUL DIVIDER ── */
+    .rainbow-divider {
+      height: 4px;
+      background: linear-gradient(90deg, #3D52A0, #7091E6, #22c55e, #f59e0b, #ef4444, #8b5cf6, #3D52A0);
+      background-size: 300% 100%;
+      border-radius: 4px;
+      animation: rainbow 4s linear infinite;
+      margin: 40px 0;
+    }
+    @keyframes rainbow {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 300% 50%; }
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .about-heading { font-size: 32px; }
+      .section-glow { font-size: 28px; }
+      .flip-container { height: 340px; }
+      .mission-text { font-size: 17px; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════
+    # HERO SECTION
+    # ══════════════════════════════════════════════════════════════
+    st.markdown("""
+    <div class="about-hero">
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <h1 class="about-heading">The Architecture of PathFinder</h1>
+      <p class="about-subheading">✨ Where AI Meets Ambition — A Second Brain for Students ✨</p>
+      <p class="about-desc">
         PathFinder AI was born out of a simple necessity: <b>Education is outdated, but your potential is not.</b>
         We built this portal to act as a second brain for students. By combining AI analytics with a
         community-first approach, we ensure that no student is left behind in the era of rapid automation.
       </p>
-    </div>""", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-    render_footer()
+    </div>
+    """, unsafe_allow_html=True)
 
+    # ══════════════════════════════════════════════════════════════
+    # STATS ROW
+    # ══════════════════════════════════════════════════════════════
+    s1, s2, s3, s4, s5 = st.columns(5)
+    stats = [
+        ("55+", "Career Paths"), ("9,500+", "Data Points"), ("98%", "Match Accuracy"),
+        ("6", "AI Models"), ("24/7", "AI Advisor"),
+    ]
+    for col, (num, label) in zip([s1,s2,s3,s4,s5], stats):
+        with col:
+            st.markdown(f"""
+            <div class="stat-box">
+              <div class="stat-number">{num}</div>
+              <div class="stat-label">{label}</div>
+            </div>""", unsafe_allow_html=True)
+
+    st.markdown("<div class='rainbow-divider'></div>", unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════
+    # MISSION QUOTE
+    # ══════════════════════════════════════════════════════════════
+    st.markdown("""
+    <div class="mission-box">
+      <p class="mission-text">
+        We don't just predict careers — we <b>decode human potential</b>.
+        Every student deserves a map, not just a compass.
+        <b>PathFinder AI is that map.</b>
+      </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════
+    # OUR JOURNEY TIMELINE
+    # ══════════════════════════════════════════════════════════════
+    st.markdown('<div style="text-align:center;"><span class="section-glow">🛤️ Our Journey</span></div>',
+                unsafe_allow_html=True)
+
+    timeline = [
+        ("💡 Ideation Phase", "Identified the gap between outdated career counseling and modern AI capabilities. Researched 9,500+ student profiles to understand real patterns."),
+        ("🔧 Development Sprint", "Built the ML pipeline — Random Forest, XGBoost, Logistic Regression — trained on real student data with 98% cross-validated accuracy."),
+        ("🤖 AI Integration", "Connected Llama 3.3 70B via Groq API for personalized roadmaps, resume analysis, and real-time career chat with persona-aware responses."),
+        ("🚀 Launch & Scale", "Deployed a full-featured Streamlit application with 9 integrated modules: Profile, Matching, Roadmap, Institutes, Resume, Chat, Insights, and Training."),
+        ("🔮 What's Next", "Expanding to 200+ careers, adding real-time job market APIs, mentor matching, and collaborative project showcases for students worldwide."),
+    ]
+    for title, desc in timeline:
+        st.markdown(f"""
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div class="timeline-content">
+            <div class="timeline-title">{title}</div>
+            <div class="timeline-desc">{desc}</div>
+          </div>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("<div class='rainbow-divider'></div>", unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════
+    # FEATURE CARDS (3D tilt hover)
+    # ══════════════════════════════════════════════════════════════
+    st.markdown('<div style="text-align:center;"><span class="section-glow">⚡ Core Systems</span></div>',
+                unsafe_allow_html=True)
+
+    features = [
+        ("🧠", "AI Career Matching", "Multi-algorithm ML engine analyzes 7 lifestyle dimensions to find your perfect career fit with burnout prevention."),
+        ("🗺️", "Dynamic Roadmaps", "Age-aware AI-generated learning paths with specific courses, projects, and certifications tailored to your stage."),
+        ("📄", "Resume Architect", "ATS-optimized resume analysis with skill gap detection, age-appropriate feedback, and actionable improvement steps."),
+        ("💬", "AI Career Advisor", "Persona-aware chatbot powered by Llama 3.3 70B that remembers your profile and gives contextual, data-driven advice."),
+        ("🏫", "Institute Finder", "Smart institute discovery with web-scraped live data, scholarship detection, and career-field filtering."),
+        ("📊", "Market Intelligence", "Interactive Plotly dashboards showing salary benchmarks, automation risks, growth trends, and industry correlations."),
+    ]
+    fc1, fc2, fc3 = st.columns(3)
+    for i, (icon, title, desc) in enumerate(features):
+        with [fc1, fc2, fc3][i % 3]:
+            st.markdown(f"""
+            <div class="feature-card">
+              <div class="feature-icon">{icon}</div>
+              <div class="feature-title">{title}</div>
+              <div class="feature-desc">{desc}</div>
+            </div>""", unsafe_allow_html=True)
+
+    st.markdown("<div class='rainbow-divider'></div>", unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════
+    # IMAGE GALLERY (hover zoom + overlay)
+    # ══════════════════════════════════════════════════════════════
+    st.markdown('<div style="text-align:center;"><span class="section-glow">📸 Inside PathFinder</span></div>',
+                unsafe_allow_html=True)
+
+    gallery = [
+        ("https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&h=300&fit=crop", "AI-Powered Analytics Dashboard"),
+        ("https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=600&h=300&fit=crop", "Collaborative Learning Environment"),
+        ("https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=600&h=300&fit=crop", "Career Path Visualization"),
+    ]
+    gc1, gc2, gc3 = st.columns(3)
+    for col, (url, label) in zip([gc1, gc2, gc3], gallery):
+        with col:
+            st.markdown(f"""
+            <div class="about-img-card">
+              <img src="{url}" alt="{label}">
+              <div class="about-img-overlay">
+                <div class="about-img-label">{label}</div>
+              </div>
+            </div>""", unsafe_allow_html=True)
+
+    st.markdown("<div class='rainbow-divider'></div>", unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════
+    # TEAM — FLIP CARDS
+    # ══════════════════════════════════════════════════════════════
+    st.markdown('<div style="text-align:center;"><span class="section-glow">👥 Meet the Builders</span></div>',
+                unsafe_allow_html=True)
+
+    tc1, tc2 = st.columns(2)
+
+    with tc1:
+        st.markdown("""
+        <div class="flip-container">
+          <div class="flip-inner">
+            <div class="flip-front">
+              <div class="flip-name">Tahira Muhammad Javed</div>
+              <div class="flip-role">🚀 Co-Founder & Lead Developer</div>
+              <div class="flip-hint">↻ Hover to flip</div>
+            </div>
+            <div class="flip-back">
+              <div class="flip-back-title">Tahira Muhammad Javed</div>
+              <div class="flip-back-text">
+                Architect of PathFinder's ML pipeline and full-stack implementation.
+                Specializes in AI/ML integration, career analytics, and building intelligent systems
+                that actually help students. Passionate about making education accessible.
+              </div>
+              <a href="https://www.linkedin.com/in/tahira-muhammad-javed-908494392/" target="_blank"
+                 class="flip-back-link">🔗 LinkedIn Profile</a>
+            </div>
+          </div>
+        </div>""", unsafe_allow_html=True)
+
+    with tc2:
+        st.markdown("""
+        <div class="flip-container">
+          <div class="flip-inner">
+            <div class="flip-front">
+              <div class="flip-name">Maheen Raza</div>
+              <div class="flip-role">🎨 Co-Founder & UX Architect</div>
+              <div class="flip-hint">↻ Hover to flip</div>
+            </div>
+            <div class="flip-back">
+              <div class="flip-back-title">Maheen Raza</div>
+              <div class="flip-back-text">
+                Designer of PathFinder's user experience and visual identity.
+                Expert in user research, interface design, and creating intuitive journeys
+                that make complex AI tools feel simple. Believes great design is invisible.
+              </div>
+              <a href="https://www.linkedin.com/in/maheen-raza-001b842b9/" target="_blank"
+                 class="flip-back-link">🔗 LinkedIn Profile</a>
+            </div>
+          </div>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("<div class='rainbow-divider'></div>", unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════
+    # TECH STACK BADGES
+    # ══════════════════════════════════════════════════════════════
+    st.markdown('<div style="text-align:center;"><span class="section-glow">🛠️ Tech Stack</span></div>',
+                unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="text-align:center; padding: 10px 0 30px;">
+      <span class="tech-badge">🐍 Python</span>
+      <span class="tech-badge">🌊 Streamlit</span>
+      <span class="tech-badge">🤖 Groq (Llama 3.3)</span>
+      <span class="tech-badge">📊 Scikit-Learn</span>
+      <span class="tech-badge">📈 Plotly</span>
+      <span class="tech-badge">🌲 Random Forest</span>
+      <span class="tech-badge">⚡ XGBoost</span>
+      <span class="tech-badge">🐼 Pandas</span>
+      <span class="tech-badge">🔮 NumPy</span>
+      <span class="tech-badge">📄 PyPDF2</span>
+      <span class="tech-badge">🕷️ BeautifulSoup</span>
+      <span class="tech-badge">💾 Joblib</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<div class='rainbow-divider'></div>", unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════
+    # CLOSING CTA
+    # ══════════════════════════════════════════════════════════════
+    st.markdown("""
+    <div style="
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      border-radius: 28px;
+      padding: 60px 40px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    ">
+      <div style="
+        position: absolute;
+        top: -80px; right: -80px;
+        width: 250px; height: 250px;
+        background: radial-gradient(circle, rgba(112,145,230,0.2), transparent 70%);
+        border-radius: 50%;
+        animation: float 6s ease-in-out infinite;
+      "></div>
+      <h2 style="
+        font-family: 'Syne', sans-serif;
+        font-size: 36px;
+        font-weight: 900;
+        color: white;
+        margin-bottom: 16px;
+        position: relative;
+        z-index: 2;
+      ">Ready to Find Your Path?</h2>
+      <p style="
+        color: #ADBBDA;
+        font-size: 17px;
+        line-height: 1.8;
+        max-width: 600px;
+        margin: 0 auto;
+        position: relative;
+        z-index: 2;
+      ">Join thousands of students who are using AI to take control of their future.
+      Your career journey starts with a single click.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    render_footer()
 # ═══════════════════════════════════════════════════════════════════
 # PAGE: AUTH
 # ═══════════════════════════════════════════════════════════════════
