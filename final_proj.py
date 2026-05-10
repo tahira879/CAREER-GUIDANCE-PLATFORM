@@ -634,9 +634,14 @@ PF_COLORS      = ["#2563EB","#06B6D4","#10B981","#F59E0B","#8B5CF6","#EF4444","#
 # ═══════════════════════════════════════════════════════════════════
 @st.cache_resource
 def get_groq():
-    k = os.getenv("GROQ_API_KEY","")
+    try:
+        k = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY","")
+    except:
+        k = os.getenv("GROQ_API_KEY","")
     if not k: return None
     return Groq(api_key=k)
+
+
 
 def groq_complete(messages, system="", max_tokens=2048):
     client = get_groq()
